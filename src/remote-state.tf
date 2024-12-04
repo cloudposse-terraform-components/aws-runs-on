@@ -2,7 +2,7 @@ module "vpc" {
   count = local.enabled && var.vpc_peering_component != null ? 1 : 0
 
   source  = "cloudposse/stack-config/yaml//modules/remote-state"
-  version = "1.5.0"
+  version = "1.8.0"
 
   component   = var.vpc_peering_component.component
   tenant      = var.vpc_peering_component.tenant
