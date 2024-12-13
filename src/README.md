@@ -5,7 +5,7 @@ tags:
   - provider/aws
 ---
 
-# Component: `runs`
+# Component: `runs-on`
 
 This component is responsible for provisioning an RunsOn (https://runs-on.com/).
 
