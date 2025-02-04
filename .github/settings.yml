@@ -5,4 +5,3 @@ repository:
   description: This component is responsible for provisioning an RunsOn
   homepage: https://cloudposse.com/accelerate
   topics: terraform, terraform-component
-
