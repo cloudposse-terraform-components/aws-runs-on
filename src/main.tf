@@ -9,7 +9,7 @@ locals {
 
 module "iam_policy" {
   source  = "cloudposse/iam-policy/aws"
-  version = "v2.0.1"
+  version = "2.0.1"
 
   context = module.this.context
   enabled = module.this.enabled
@@ -60,7 +60,7 @@ module "cloudformation_stack" {
   count = local.enabled ? 1 : 0
 
   source  = "cloudposse/cloudformation-stack/aws"
-  version = "v0.7.1"
+  version = "0.7.1"
 
   enabled = var.enabled
   context = module.this.context
