@@ -9,7 +9,7 @@ locals {
 
 module "iam_policy" {
   source  = "cloudposse/iam-policy/aws"
-  version = "2.0.1"
+  version = "2.0.2"
 
   context = module.this.context
   enabled = module.this.enabled
