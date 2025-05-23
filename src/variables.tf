@@ -40,11 +40,11 @@ variable "policy_body" {
 
 variable "networking_stack" {
   type        = string
-  description = "Let RunsOn manage your networking stack (`embedded`), or use a vpc under your control (`external`). If you select `external`, you will need to provide the VPC ID, the subnet IDs, and the security group ID, and make sure your whole networking setup is compatible with RunsOn (see https://runs-on.com/networking/embedded-vs-external/ for more details). To get started quickly, we recommend using the 'embedded' option."
+  description = "Let RunsOn manage your networking stack (`embedded`), or use a vpc under your control (`external`). Null will default to whatever the template used as default. If you select `external`, you will need to provide the VPC ID, the subnet IDs, and optionally the security group ID, and make sure your whole networking setup is compatible with RunsOn (see https://runs-on.com/networking/embedded-vs-external/ for more details). To get started quickly, we recommend using the 'embedded' option."
   nullable    = true
   default     = "embedded"
   validation {
-    condition     = contains(["embedded", "external"], var.networking_stack)
+    condition     = contains(["embedded", "external"], var.networking_stack) || var.networking_stack == null
     error_message = "Networking stack must be either `embedded` or `external`."
   }
 }
