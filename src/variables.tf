@@ -38,13 +38,55 @@ variable "policy_body" {
   description = "Structure containing the stack policy body"
 }
 
-variable "vpc_peering_component" {
-  default = null
-  type = object({
-    component   = string
-    environment = optional(string)
-    tenant      = optional(string)
-    stage       = optional(string)
-  })
-  description = "The component name of the VPC Peering Connection"
+variable "networking_stack" {
+  type        = string
+  description = "Let RunsOn manage your networking stack (`embedded`), or use a vpc under your control (`external`). If you select `external`, you will need to provide the VPC ID, the subnet IDs, and the security group ID, and make sure your whole networking setup is compatible with RunsOn (see https://runs-on.com/networking/embedded-vs-external/ for more details). To get started quickly, we recommend using the 'embedded' option."
+  nullable    = true
+  default     = "embedded"
+  validation {
+    condition     = contains(["embedded", "external"], var.networking_stack)
+    error_message = "Networking stack must be either `embedded` or `external`."
+  }
+}
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID"
+  nullable    = true
+  default     = null
+  validation {
+    condition     = var.networking_stack != "external" || var.vpc_id != null
+    error_message = "VPC ID is required when networking stack is `external`."
+  }
+}
+
+variable "subnet_ids" {
+  type        = list(string)
+  description = "Subnet IDs"
+  nullable    = true
+  default     = null
+  validation {
+    condition     = var.networking_stack != "external" || var.subnet_ids != null && length(var.subnet_ids) > 0
+    error_message = "Subnet IDs are required when networking stack is `external`."
+  }
+}
+
+variable "security_group_id" {
+  type        = string
+  description = "Security group ID. If not set, a new security group will be created."
+  nullable    = true
+  default     = null
+}
+
+variable "security_group_rules" {
+  type        = list(object({
+    type        = string
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+  }))
+  description = "Security group rules. These are either added to the security passed in, or added to the security group created when var.security_group_id is not set. Types include `ingress` and `egress`."
+  nullable    = true
+  default     = null
 }

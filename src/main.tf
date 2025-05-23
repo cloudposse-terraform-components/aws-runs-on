@@ -1,9 +1,19 @@
 locals {
   enabled = module.this.enabled
 
+  vpc_id = var.vpc_id != null ?  { "ExternalVpcId" = var.vpc_id } : {}
+  subnet_ids = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = var.subnet_ids } : {}
+  external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
+  created_security_group_id = var.security_group_id == null && var.networking_stack == "external" ? { "ExternalVpcSecurityGroupId" = module.security_group.id } : {}
+
   parameters = merge({
     "EC2InstanceCustomPolicy" = module.iam_policy.policy_arn
-  }, var.parameters)
+  }, var.parameters
+  , local.vpc_id
+  , local.subnet_ids
+  , local.external_security_group_id
+  , local.created_security_group_id
+  )
 
 }
 
@@ -56,6 +66,29 @@ module "iam_policy" {
   ]
 }
 
+module "security_group" {
+  source  = "cloudposse/security-group/aws"
+  version = "2.2.0"
+
+  enabled = local.enabled && var.security_group_id == null && var.networking_stack == "external"
+
+  vpc_id = local.vpc_id
+
+  context = module.this.context
+}
+
+resource "aws_security_group_rule" "this" {
+  for_each = var.security_group_rules != null && local.enabled ? { for rule in var.security_group_rules : md5(jsonencode(rule)) => rule } : {}
+
+  security_group_id = local.security_group_id
+
+  type = each.value.type
+  from_port = each.value.from_port
+  to_port = each.value.to_port
+  protocol = each.value.protocol
+  cidr_blocks = each.value.cidr_blocks
+}
+
 module "cloudformation_stack" {
   count = local.enabled ? 1 : 0
 
@@ -93,6 +126,7 @@ locals {
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable2Id"]),
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable3Id"]),
   ])
+  security_group_id = one(module.cloudformation_stack[*].outputs["RunsOnSecurityGroupId"])
 }
 
 data "aws_nat_gateways" "ngws" {

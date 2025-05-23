@@ -46,6 +46,11 @@ output "public_subnet_ids" {
   description = "Public subnet IDs"
 }
 
+output "security_group_id" {
+  value       = local.security_group_id
+  description = "Security group ID"
+}
+
 output "private_route_table_ids" {
   value       = local.private_route_table_ids
   description = "Private subnet route table IDs"
