@@ -79,7 +79,7 @@ variable "security_group_id" {
 }
 
 variable "security_group_rules" {
-  type        = list(object({
+  type = list(object({
     type        = string
     from_port   = number
     to_port     = number
