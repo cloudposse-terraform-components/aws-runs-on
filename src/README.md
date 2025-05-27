@@ -28,6 +28,7 @@ components:
     runs-on/defaults:
       metadata:
         component: runs-on
+        type: abstract
       vars:
         name: runs-on
         enabled: true
