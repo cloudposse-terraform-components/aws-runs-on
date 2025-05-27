@@ -1,7 +1,7 @@
 locals {
   enabled = module.this.enabled
 
-  vpc_id                     = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
+  external_vpc_id            = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
   networking_stack           = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
   subnet_ids                 = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = var.subnet_ids } : {}
   external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
@@ -11,7 +11,7 @@ locals {
     "EC2InstanceCustomPolicy" = module.iam_policy.policy_arn
     }, var.parameters
     , local.networking_stack
-    , local.vpc_id
+    , local.external_vpc_id
     , local.subnet_ids
     , local.external_security_group_id
     , local.created_security_group_id
