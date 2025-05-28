@@ -110,24 +110,45 @@ module "cloudformation_stack" {
   depends_on = [module.iam_policy]
 }
 
+data "aws_vpc" "this" {
+  count = local.enabled ? 1 : 0
+  id    = local.vpc_id
+}
+
+data "aws_subnets" "private" {
+  count = local.enabled ? 1 : 0
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["false"]
+  }
+}
+
+data "aws_subnets" "public" {
+  count = local.enabled ? 1 : 0
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
+  }
+}
+
 locals {
-  vpc_id         = one(module.cloudformation_stack[*].outputs["RunsOnVPCId"])
-  vpc_cidr_block = one(module.cloudformation_stack[*].outputs["RunsOnVpcCidrBlock"])
-  public_subnet_ids = compact([
-    one(module.cloudformation_stack[*].outputs["RunsOnPublicSubnet1"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPublicSubnet2"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPublicSubnet3"]),
-  ])
-  private_subnet_ids = compact([
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateSubnet1"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateSubnet2"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateSubnet3"]),
-  ])
-  private_route_table_ids = compact([
+  vpc_id             = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVPCId"]) : var.vpc_id
+  vpc_cidr_block     = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVpcCidrBlock"]) : one(data.aws_vpc.this[*].cidr_block)
+  public_subnet_ids  = one(data.aws_subnets.public[*].ids)
+  private_subnet_ids = one(data.aws_subnets.private[*].ids)
+  private_route_table_ids = var.networking_stack == "embedded" ? compact([
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable1Id"]),
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable2Id"]),
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable3Id"]),
-  ])
+  ]) : []
   security_group_id = one(module.cloudformation_stack[*].outputs["RunsOnSecurityGroupId"])
 }
 
