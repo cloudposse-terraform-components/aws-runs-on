@@ -12,6 +12,10 @@ This component is responsible for provisioning an RunsOn (https://runs-on.com/).
 After deploying this component, you will need to install the RunsOn app to GitHub. See the
 [RunsOn documentation](https://runs-on.com/guides/install/#3-github-app-registration) for more information.
 
+## Compatibility
+
+Due to output changes, this component only works with version 2.8.2+ of the RunsOn CloudFormation template.
+
 ## Usage
 
 **Stack Level**: Regional
