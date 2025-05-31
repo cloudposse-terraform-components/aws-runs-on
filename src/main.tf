@@ -1,9 +1,21 @@
 locals {
   enabled = module.this.enabled
 
+  external_vpc_id            = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
+  networking_stack           = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
+  subnet_ids                 = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = var.subnet_ids } : {}
+  external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
+  created_security_group_id  = var.security_group_id == null && var.networking_stack == "external" ? { "ExternalVpcSecurityGroupId" = module.security_group.id } : {}
+
   parameters = merge({
     "EC2InstanceCustomPolicy" = module.iam_policy.policy_arn
-  }, var.parameters)
+    }, var.parameters
+    , local.networking_stack
+    , local.external_vpc_id
+    , local.subnet_ids
+    , local.external_security_group_id
+    , local.created_security_group_id
+  )
 
 }
 
@@ -56,6 +68,29 @@ module "iam_policy" {
   ]
 }
 
+module "security_group" {
+  source  = "cloudposse/security-group/aws"
+  version = "2.2.0"
+
+  enabled = local.enabled && var.security_group_id == null && var.networking_stack == "external"
+
+  vpc_id = local.vpc_id
+
+  context = module.this.context
+}
+
+resource "aws_security_group_rule" "this" {
+  for_each = var.security_group_rules != null && local.enabled ? { for rule in var.security_group_rules : md5(jsonencode(rule)) => rule } : {}
+
+  security_group_id = local.security_group_id
+
+  type        = each.value.type
+  from_port   = each.value.from_port
+  to_port     = each.value.to_port
+  protocol    = each.value.protocol
+  cidr_blocks = each.value.cidr_blocks
+}
+
 module "cloudformation_stack" {
   count = local.enabled ? 1 : 0
 
@@ -75,24 +110,46 @@ module "cloudformation_stack" {
   depends_on = [module.iam_policy]
 }
 
+data "aws_vpc" "this" {
+  count = local.enabled ? 1 : 0
+  id    = local.vpc_id
+}
+
+data "aws_subnets" "private" {
+  count = local.enabled ? 1 : 0
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["false"]
+  }
+}
+
+data "aws_subnets" "public" {
+  count = local.enabled ? 1 : 0
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
+  }
+}
+
 locals {
-  vpc_id         = one(module.cloudformation_stack[*].outputs["RunsOnVPCId"])
-  vpc_cidr_block = one(module.cloudformation_stack[*].outputs["RunsOnVpcCidrBlock"])
-  public_subnet_ids = compact([
-    one(module.cloudformation_stack[*].outputs["RunsOnPublicSubnet1"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPublicSubnet2"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPublicSubnet3"]),
-  ])
-  private_subnet_ids = compact([
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateSubnet1"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateSubnet2"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateSubnet3"]),
-  ])
-  private_route_table_ids = compact([
+  vpc_id             = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVPCId"]) : var.vpc_id
+  vpc_cidr_block     = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVpcCidrBlock"]) : one(data.aws_vpc.this[*].cidr_block)
+  public_subnet_ids  = one(data.aws_subnets.public[*].ids)
+  private_subnet_ids = one(data.aws_subnets.private[*].ids)
+  private_route_table_ids = var.networking_stack == "embedded" ? compact([
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable1Id"]),
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable2Id"]),
     one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable3Id"]),
-  ])
+  ]) : []
+  security_group_id = one(module.cloudformation_stack[*].outputs["RunsOnSecurityGroupId"])
 }
 
 data "aws_nat_gateways" "ngws" {

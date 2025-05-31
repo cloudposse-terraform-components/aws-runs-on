@@ -28,22 +28,25 @@ output "nat_gateway_ids" {
   description = "NAT Gateway IDs"
 }
 
-// Required by TGW Component but not created by RunsOn CloudFormation Stack
+# Required by TGW Component but not created by RunsOn CloudFormation Stack
 output "nat_instance_ids" {
   value       = []
   description = "NAT Instance IDs"
 }
 
 output "private_subnet_ids" {
-  value = local.private_subnet_ids
-  #   value       = one(data.aws_subnets.private_subnets[*].ids)
+  value       = local.private_subnet_ids
   description = "Private subnet IDs"
 }
 
 output "public_subnet_ids" {
-  value = local.public_subnet_ids
-  #   value       = one(data.aws_subnets.public_subnets[*].ids)
+  value       = local.public_subnet_ids
   description = "Public subnet IDs"
+}
+
+output "security_group_id" {
+  value       = local.security_group_id
+  description = "Security group ID"
 }
 
 output "private_route_table_ids" {
