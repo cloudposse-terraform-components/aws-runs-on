@@ -214,7 +214,7 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
 | Name | Source | Version |
 |------|--------|---------|
 | <a name="module_cloudformation_stack"></a> [cloudformation\_stack](#module\_cloudformation\_stack) | cloudposse/cloudformation-stack/aws | 0.7.1 |
-| <a name="module_iam_policy"></a> [iam\_policy](#module\_iam\_policy) | cloudposse/iam-policy/aws | 2.0.1 |
+| <a name="module_iam_policy"></a> [iam\_policy](#module\_iam\_policy) | cloudposse/iam-policy/aws | 2.0.2 |
 | <a name="module_iam_roles"></a> [iam\_roles](#module\_iam\_roles) | ../account-map/modules/iam-roles | n/a |
 | <a name="module_this"></a> [this](#module\_this) | cloudposse/label/null | 0.25.0 |
 | <a name="module_vpc"></a> [vpc](#module\_vpc) | cloudposse/stack-config/yaml//modules/remote-state | 1.8.0 |
