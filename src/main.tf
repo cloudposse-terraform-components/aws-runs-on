@@ -1,11 +1,13 @@
 locals {
   enabled = module.this.enabled
 
-  external_vpc_id            = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
-  networking_stack           = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
-  subnet_ids                 = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = var.subnet_ids } : {}
+  external_vpc_id  = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
+  networking_stack = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
+  subnet_ids       = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = join(",", var.subnet_ids) } : {}
+  // If var.security_group_id is provided, we use it. Otherwise, if we are using the external networking stack, we create one.
   external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
-  created_security_group_id  = var.security_group_id == null && var.networking_stack == "external" ? { "ExternalVpcSecurityGroupId" = module.security_group.id } : {}
+  // If var.security_group_id is not provided and we are using the external networking stack, we create one.
+  created_security_group_id = var.security_group_id == null && var.networking_stack == "external" ? { "ExternalVpcSecurityGroupId" = module.security_group.id } : {}
 
   parameters = merge({
     "EC2InstanceCustomPolicy" = module.iam_policy.policy_arn
@@ -68,13 +70,20 @@ module "iam_policy" {
   ]
 }
 
+// Typically when runs-on is installed, and we're using the embedded networking stack, we need a security group. 
+// This is a batties included optional feature.
 module "security_group" {
   source  = "cloudposse/security-group/aws"
   version = "2.2.0"
 
-  enabled = local.enabled && var.security_group_id == null && var.networking_stack == "external"
+  // Enabled if we are using the external networking stack and no security group ID is provided
+  enabled = local.enabled && var.networking_stack == "external" && var.security_group_id == null
 
-  vpc_id = local.vpc_id
+  // This cannot be local.vpc_id because that would create a dependency cycle - as the local.vpc_id is determined as the resulting VPC id.
+  // The vpc_id is the created vpc by runs-on, or the one provided by the user if using the external networking stack.
+  // Thus the security group ID (which is passed in as `ExternalVpcSecurityGroupId` as a parameter to the stack) cannot depend on the stacks' vpc_id.
+  // `var.vpc_id` is safe to use here, because the networking_stack is required to be external for this.
+  vpc_id = var.vpc_id
 
   context = module.this.context
 }

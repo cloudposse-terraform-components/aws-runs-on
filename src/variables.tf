@@ -54,10 +54,6 @@ variable "vpc_id" {
   description = "VPC ID"
   nullable    = true
   default     = null
-  validation {
-    condition     = var.networking_stack != "external" || var.vpc_id != null
-    error_message = "VPC ID is required when networking stack is `external`."
-  }
 }
 
 variable "subnet_ids" {
@@ -65,10 +61,6 @@ variable "subnet_ids" {
   description = "Subnet IDs"
   nullable    = true
   default     = null
-  validation {
-    condition     = var.networking_stack != "external" || var.subnet_ids != null && length(var.subnet_ids) > 0
-    error_message = "Subnet IDs are required when networking stack is `external`."
-  }
 }
 
 variable "security_group_id" {

@@ -24,7 +24,7 @@ Due to output changes, this component only works with version 2.8.2+ of the Runs
 
 Regardless of the networking style, you should have these defaults in common:
 
-(`defaults.yaml`)
+(`runs-on/defaults.yaml`)
 
 ```yaml
 components:
@@ -39,19 +39,30 @@ components:
         capabilities: ["CAPABILITY_IAM"]
         on_failure: "ROLLBACK"
         timeout_in_minutes: 30
-        template_url: https://runs-on.s3.eu-west-1.amazonaws.com/cloudformation/template.yaml
+        # template_url: https://runs-on.s3.eu-west-1.amazonaws.com/cloudformation/template.yaml
+        # See latest version and changelog at https://runs-on.com/changelog/
+        template_url: https://runs-on.s3.eu-west-1.amazonaws.com/cloudformation/template-v2.8.3.yaml   
         parameters:
-          AppCPU: 512
-          AppMemory: 1024
-          EmailAddress: devops@acme.com
-          Environment: core-auto
-          GithubOrganization: ACME
-          LicenseKey: <LICENSE>
-          Private: always # always | true | false - Always will default place in private subnet, true will place in private subnet if tag `private=true` present on workflow, false will place in public subnet
+          AppCPU: 256
+          AppMemory: 512
+          EmailAddress: developer@cloudposse.com
+          # Environments let you run multiple Stacks in one organization and segregate resources.
+          # If you specify an environment, then all the jobs must also specify the which environment they are running in.
+          # To keep things simple, we use the default environment ("production") and leave the `env` label unset in the workflow.
+          EncryptEbs: true
+          # With the default value of SSHAllowed: true, the runners that are placed in a public subnet
+          # will allow ingress on port 22. This is highly abused (scanners running constantly looking for vulernable SSH servers)
+          # and should not be allowed. If you need access to the runners, use Session Manager (SSM).
+          SSHAllowed: false
+          LicenseKey: <LICENSE_KEY>
+          Private: false # always | true | false - Always will default place in private subnet, true will place in private subnet if tag `private=true` present on workflow, false will place in public subnet
+          RunnerLargeDiskSize: 120 # Disk size in GB for disk=large runners
+          Ec2LogRetentionInDays: 30
+          VpcFlowLogRetentionInDays: 14
 ```
 
 
-### Embedded networking
+### Embedded networking (Runs On managed VPC)
 
 When no VPC details are set, the component will create a new VPC and subnets for you. This is done via the CloudFormation template.
 
@@ -77,7 +88,49 @@ components:
         parameters:
           VpcCidrBlock: 10.100.0.0/16
 ```
-### (DEPRECATED) Configuring with Transit Gateway
+
+### External networking (Use existing VPC)
+
+When you want to use an existing VPC, you can set the `vpc_id`, `subnet_ids`, and `security_group_id` variables.
+
+(`_defaults.yaml`)
+
+```yaml
+terraform:
+  hooks:
+    store-outputs:
+      name: auto/ssm
+```
+
+(`runs-on.yaml`)
+
+```yaml
+import:
+  - orgs/acme/core/auto/_defaults
+  - mixins/region/us-east-1
+  - catalog/vpc/defaults
+  - catalog/runs-on/defaults
+
+components:
+  terraform:
+    runs-on:
+      metadata:
+        inherits:
+          - runs-on/defaults
+        component: runs-on
+      vars:
+        networking_stack: external
+        # There are other ways to get the vpc_id, subnet_ids, and security_group_id. You can 
+        # Harcode
+        # Use Atmos KV Store
+        # Use atmos !terraform.output yaml function
+        vpc_id: !store auto/ssm vpc vpc_id
+        subnet_ids: !store auto/ssm vpc private_subnet_ids
+        security_group_id: !store auto/ssm vpc default_security_group_id
+```
+
+<details>
+<summary>(DEPRECATED) Configuring with Transit Gateway</summary>
 
 It's important to note that the embedded networking will require some customization to work with Transit Gateway.
 
@@ -204,48 +257,7 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
               - runs-on
         ...
 ```
-
-### External networking
-
-When you want to use an existing VPC, you can set the `vpc_id`, `subnet_ids`, and `security_group_id` variables.
-
-(`_defaults.yaml`)
-
-```yaml
-terraform:
-  hooks:
-    store-outputs:
-      name: auto/ssm
-```
-
-(`runs-on.yaml`)
-
-```yaml
-import:
-  - orgs/acme/core/auto/_defaults
-  - mixins/region/us-east-1
-  - catalog/vpc/defaults
-  - catalog/runs-on/defaults
-
-components:
-  terraform:
-    vpc:
-      vars:
-        name: vpc
-        enabled: true
-        cidr_block: 10.100.0.0/16
-
-    runs-on:
-      metadata:
-        inherits:
-          - runs-on/defaults
-        component: runs-on
-      vars:
-        networking_stack: external
-        vpc_id: !store auto/ssm vpc vpc_id
-        subnet_ids: !store auto/ssm vpc private_subnet_ids
-        security_group_id: !store auto/ssm vpc default_security_group_id
-```
+</details>
 
 # Terraform Docs
 
