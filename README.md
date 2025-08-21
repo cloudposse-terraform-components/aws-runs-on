@@ -2,8 +2,11 @@
 
 <!-- markdownlint-disable -->
 <a href="https://cpco.io/homepage"><img src="https://github.com/cloudposse-terraform-components/aws-runs-on/blob/main/.github/banner.png?raw=true" alt="Project Banner"/></a><br/>
-    <p align="right">
-<a href="https://github.com/cloudposse-terraform-components/aws-runs-on/releases/latest"><img src="https://img.shields.io/github/release/cloudposse-terraform-components/aws-runs-on.svg?style=for-the-badge" alt="Latest Release"/></a><a href="https://slack.cloudposse.com"><img src="https://slack.cloudposse.com/for-the-badge.svg" alt="Slack Community"/></a></p>
+
+
+<p align="right"><a href="https://github.com/cloudposse-terraform-components/aws-runs-on/releases/latest"><img src="https://img.shields.io/github/release/cloudposse-terraform-components/aws-runs-on.svg?style=for-the-badge" alt="Latest Release"/></a><a href="https://slack.cloudposse.com"><img src="https://slack.cloudposse.com/for-the-badge.svg" alt="Slack Community"/></a><a href="https://cloudposse.com/support/"><img src="https://img.shields.io/badge/Get_Support-success.svg?style=for-the-badge" alt="Get Support"/></a>
+
+</p>
 <!-- markdownlint-restore -->
 
 <!--
@@ -27,24 +30,36 @@
 
 -->
 
-This component is responsible for provisioning an RunsOn (https://runs-on.com/).
+Component: `runs-on`
 
-After deploying this component, you will need to install the RunsOn app to GitHub. See the
-[RunsOn documentation](https://runs-on.com/guides/install/#3-github-app-registration) for more information.
+This component provisions RunsOn for GitHub Actions self-hosted runners. After deploying this
+component, install the RunsOn GitHub App in your organization to enable runner registration.
+See the RunsOn documentation for GitHub App installation and configuration details.
 
-## Compatibility
+Compatibility: Requires RunsOn CloudFormation template version 2.8.2 or newer due to output changes.
 
-Due to output changes, this component only works with version 2.8.2+ of the RunsOn CloudFormation template.
+
+
+> [!TIP]
+> #### 👽 Use Atmos with Terraform
+> Cloud Posse uses [`atmos`](https://atmos.tools) to easily orchestrate multiple environments using Terraform. <br/>
+> Works with [Github Actions](https://atmos.tools/integrations/github-actions/), [Atlantis](https://atmos.tools/integrations/atlantis), or [Spacelift](https://atmos.tools/integrations/spacelift).
+>
+> <details>
+> <summary><strong>Watch demo of using Atmos with Terraform</strong></summary>
+> <img src="https://github.com/cloudposse/atmos/blob/main/docs/demo.gif?raw=true"/><br/>
+> <i>Example of running <a href="https://atmos.tools"><code>atmos</code></a> to manage infrastructure from our <a href="https://atmos.tools/quick-start/">Quick Start</a> tutorial.</i>
+> </details>
+
+
+
+
 
 ## Usage
 
-**Stack Level**: Regional
+Stack Level: Regional
 
-### Defaults
-
-Regardless of the networking style, you should have these defaults in common:
-
-(`runs-on/defaults.yaml`)
+Defaults (runs-on/defaults.yaml)
 
 ```yaml
 components:
@@ -61,17 +76,17 @@ components:
         timeout_in_minutes: 30
         # template_url: https://runs-on.s3.eu-west-1.amazonaws.com/cloudformation/template.yaml
         # See latest version and changelog at https://runs-on.com/changelog/
-        template_url: https://runs-on.s3.eu-west-1.amazonaws.com/cloudformation/template-v2.8.3.yaml   
+        template_url: https://runs-on.s3.eu-west-1.amazonaws.com/cloudformation/template-v2.8.3.yaml
         parameters:
           AppCPU: 256
           AppMemory: 512
           EmailAddress: developer@cloudposse.com
           # Environments let you run multiple Stacks in one organization and segregate resources.
-          # If you specify an environment, then all the jobs must also specify the which environment they are running in.
+          # If you specify an environment, then all the jobs must also specify which environment they are running in.
           # To keep things simple, we use the default environment ("production") and leave the `env` label unset in the workflow.
           EncryptEbs: true
           # With the default value of SSHAllowed: true, the runners that are placed in a public subnet
-          # will allow ingress on port 22. This is highly abused (scanners running constantly looking for vulernable SSH servers)
+          # will allow ingress on port 22. This is highly abused (scanners running constantly looking for vulnerable SSH servers)
           # and should not be allowed. If you need access to the runners, use Session Manager (SSM).
           SSHAllowed: false
           LicenseKey: <LICENSE_KEY>
@@ -81,14 +96,12 @@ components:
           VpcFlowLogRetentionInDays: 14
 ```
 
+Embedded networking (RunsOn managed VPC)
 
-### Embedded networking (Runs On managed VPC)
+When no VPC details are set, the component will create a new VPC and subnets via the CloudFormation template.
+Set the `VpcCidrBlock` parameter to the CIDR block of the VPC that will be created.
 
-When no VPC details are set, the component will create a new VPC and subnets for you. This is done via the CloudFormation template.
-
-Note, you should set the `VpcCidrBlock` parameter to the CIDR block of the VPC that will be created.
-
-(`runs-on.yaml`)
+(runs-on.yaml)
 
 ```yaml
 import:
@@ -109,11 +122,11 @@ components:
           VpcCidrBlock: 10.100.0.0/16
 ```
 
-### External networking (Use existing VPC)
+External networking (Use existing VPC)
 
-When you want to use an existing VPC, you can set the `vpc_id`, `subnet_ids`, and `security_group_id` variables.
+Use an existing VPC by setting `vpc_id`, `subnet_ids`, and `security_group_id`.
 
-(`_defaults.yaml`)
+(_defaults.yaml)
 
 ```yaml
 terraform:
@@ -122,7 +135,7 @@ terraform:
       name: auto/ssm
 ```
 
-(`runs-on.yaml`)
+(runs-on.yaml)
 
 ```yaml
 import:
@@ -140,8 +153,8 @@ components:
         component: runs-on
       vars:
         networking_stack: external
-        # There are other ways to get the vpc_id, subnet_ids, and security_group_id. You can 
-        # Harcode
+        # There are other ways to get the vpc_id, subnet_ids, and security_group_id.
+        # Hardcode
         # Use Atmos KV Store
         # Use atmos !terraform.output yaml function
         vpc_id: !store auto/ssm vpc vpc_id
@@ -149,21 +162,13 @@ components:
         security_group_id: !store auto/ssm vpc default_security_group_id
 ```
 
-<details>
-<summary>(DEPRECATED) Configuring with Transit Gateway</summary>
+(DEPRECATED) Configuring with Transit Gateway
 
-It's important to note that the embedded networking will require some customization to work with Transit Gateway.
+The embedded networking requires customization to work with Transit Gateway.
+Using Cloud Posse components for TGW ([tgw/hub] and [tgw/spoke]), the outputs of this component include
+the same outputs as the `vpc` component (RunsOn creates a VPC and subnets).
 
-The following configuration assumes you are using the Cloud Posse Components for Transit Gateway
-([tgw/hub](https://docs.cloudposse.com/components/library/aws/tgw/hub/) &
-[tgw/spoke](https://docs.cloudposse.com/components/library/aws/tgw/spoke/)).
-
-The outputs of this component contain the same outputs as the `vpc` component. This is because the runs-on
-cloudformation stack creates a VPC and subnets.
-
-First we need to update the TGW/Hub - this stores information about the VPCs that are allowed to be used by TGW Spokes.
-
-Assuming your TGW/Hub lives in the `core-network` account and your Runs-On is deployed to `core-auto` (`tgw-hub.yaml`)
+Update the TGW Hub to store allowed VPCs (example tgw-hub.yaml):
 
 ```yaml
 vars:
@@ -178,51 +183,49 @@ vars:
 
 ```yaml
 components:
-terraform:
-  tgw/hub/defaults:
-    metadata:
-      type: abstract
-      component: tgw/hub
-    vars:
-      enabled: true
-      name: tgw-hub
-      tags:
-        Team: sre
-        Service: tgw-hub
+  terraform:
+    tgw/hub/defaults:
+      metadata:
+        type: abstract
+        component: tgw/hub
+      vars:
+        enabled: true
+        name: tgw-hub
+        tags:
+          Team: sre
+          Service: tgw-hub
 
-  tgw/hub:
-    metadata:
-      inherits:
-        - tgw/hub/defaults
-      component: tgw/hub
-    vars:
-      connections:
-        - account:
-            tenant: core
-            stage: network
-        - account:
-            tenant: core
-            stage: auto
-          vpc_component_names:
-            - vpc
-            - runs-on
-        - account:
-            tenant: plat
-            stage: sandbox
-        - account:
-            tenant: plat
-            stage: dev
-        - account:
-            tenant: plat
-            stage: staging
-        - account:
-            tenant: plat
-            stage: prod
+    tgw/hub:
+      metadata:
+        inherits:
+          - tgw/hub/defaults
+        component: tgw/hub
+      vars:
+        connections:
+          - account:
+              tenant: core
+              stage: network
+          - account:
+              tenant: core
+              stage: auto
+            vpc_component_names:
+              - vpc
+              - runs-on
+          - account:
+              tenant: plat
+              stage: sandbox
+          - account:
+              tenant: plat
+              stage: dev
+          - account:
+              tenant: plat
+              stage: staging
+          - account:
+              tenant: plat
+              stage: prod
 ```
 
-We then need to create a spoke that refers to the VPC created by Runs-On.
-
-(`tgw-spoke.yaml`)
+Create a TGW spoke that refers to the RunsOn VPC (example tgw-spoke.yaml):
 
 ```yaml
 tgw/spoke/runs-on:
@@ -258,11 +261,7 @@ tgw/spoke/runs-on:
           stage: prod
 ```
 
-Finally we need to update the spokes of the TGW/Spokes to allow Runs-On traffic to the other accounts.
-
-Typically this includes `core-auto`, `core-network`, and your platform accounts.
-
-(`tgw-spoke.yaml`)
+Update other TGW spokes to allow RunsOn traffic (example tgw-spoke.yaml):
 
 ```yaml
   tgw/spoke:
@@ -271,30 +270,40 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
         - tgw/spoke-defaults
     vars:
       connections:
-        ...
+        # ...
             vpc_component_names:
               - vpc
               - runs-on
-        ...
+        # ...
 ```
-</details>
 
-# Terraform Docs
 
-<!-- prettier-ignore-start -->
-<!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+> [!IMPORTANT]
+> In Cloud Posse's examples, we avoid pinning modules to specific versions to prevent discrepancies between the documentation
+> and the latest released versions. However, for your own projects, we strongly advise pinning each module to the exact version
+> you're using. This practice ensures the stability of your infrastructure. Additionally, we recommend implementing a systematic
+> approach for updating versions to avoid unexpected changes.
+
+
+
+
+
+
+
+
+<!-- markdownlint-disable -->
 ## Requirements
 
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.0.0 |
-| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.9.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.9.0, < 6.0.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.9.0 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.9.0, < 6.0.0 |
 
 ## Modules
 
@@ -302,7 +311,7 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
 |------|--------|---------|
 | <a name="module_cloudformation_stack"></a> [cloudformation\_stack](#module\_cloudformation\_stack) | cloudposse/cloudformation-stack/aws | 0.7.1 |
 | <a name="module_iam_policy"></a> [iam\_policy](#module\_iam\_policy) | cloudposse/iam-policy/aws | 2.0.2 |
-| <a name="module_iam_roles"></a> [iam\_roles](#module\_iam\_roles) | cloudposse/iam-roles/aws | 0.10.0 |
+| <a name="module_iam_roles"></a> [iam\_roles](#module\_iam\_roles) | ../account-map/modules/iam-roles | n/a |
 | <a name="module_security_group"></a> [security\_group](#module\_security\_group) | cloudposse/security-group/aws | 2.2.0 |
 | <a name="module_this"></a> [this](#module\_this) | cloudposse/label/null | 0.25.0 |
 
@@ -320,32 +329,32 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_additional_tag_map"></a> [additional\_tag\_map](#input\_additional\_tag\_map) | Additional key-value pairs to add to each map in `tags_as_list_of_maps`. Not added to `tags` or `id`.<br>This is for some rare cases where resources want additional configuration of tags<br>and therefore take a list of maps with tag key, value, and additional configuration. | `map(string)` | `{}` | no |
-| <a name="input_attributes"></a> [attributes](#input\_attributes) | ID element. Additional attributes (e.g. `workers` or `cluster`) to add to `id`,<br>in the order they appear in the list. New attributes are appended to the<br>end of the list. The elements of the list are joined by the `delimiter`<br>and treated as a single ID element. | `list(string)` | `[]` | no |
+| <a name="input_additional_tag_map"></a> [additional\_tag\_map](#input\_additional\_tag\_map) | Additional key-value pairs to add to each map in `tags_as_list_of_maps`. Not added to `tags` or `id`.<br/>This is for some rare cases where resources want additional configuration of tags<br/>and therefore take a list of maps with tag key, value, and additional configuration. | `map(string)` | `{}` | no |
+| <a name="input_attributes"></a> [attributes](#input\_attributes) | ID element. Additional attributes (e.g. `workers` or `cluster`) to add to `id`,<br/>in the order they appear in the list. New attributes are appended to the<br/>end of the list. The elements of the list are joined by the `delimiter`<br/>and treated as a single ID element. | `list(string)` | `[]` | no |
 | <a name="input_capabilities"></a> [capabilities](#input\_capabilities) | A list of capabilities. Valid values: CAPABILITY\_IAM, CAPABILITY\_NAMED\_IAM, CAPABILITY\_AUTO\_EXPAND | `list(string)` | `[]` | no |
-| <a name="input_context"></a> [context](#input\_context) | Single object for setting entire context at once.<br>See description of individual variables for details.<br>Leave string and numeric variables as `null` to use default value.<br>Individual variable settings (non-null) override settings in context object,<br>except for attributes, tags, and additional\_tag\_map, which are merged. | `any` | <pre>{<br>  "additional_tag_map": {},<br>  "attributes": [],<br>  "delimiter": null,<br>  "descriptor_formats": {},<br>  "enabled": true,<br>  "environment": null,<br>  "id_length_limit": null,<br>  "label_key_case": null,<br>  "label_order": [],<br>  "label_value_case": null,<br>  "labels_as_tags": [<br>    "unset"<br>  ],<br>  "name": null,<br>  "namespace": null,<br>  "regex_replace_chars": null,<br>  "stage": null,<br>  "tags": {},<br>  "tenant": null<br>}</pre> | no |
-| <a name="input_delimiter"></a> [delimiter](#input\_delimiter) | Delimiter to be used between ID elements.<br>Defaults to `-` (hyphen). Set to `""` to use no delimiter at all. | `string` | `null` | no |
-| <a name="input_descriptor_formats"></a> [descriptor\_formats](#input\_descriptor\_formats) | Describe additional descriptors to be output in the `descriptors` output map.<br>Map of maps. Keys are names of descriptors. Values are maps of the form<br>`{<br>  format = string<br>  labels = list(string)<br>}`<br>(Type is `any` so the map values can later be enhanced to provide additional options.)<br>`format` is a Terraform format string to be passed to the `format()` function.<br>`labels` is a list of labels, in order, to pass to `format()` function.<br>Label values will be normalized before being passed to `format()` so they will be<br>identical to how they appear in `id`.<br>Default is `{}` (`descriptors` output will be empty). | `any` | `{}` | no |
+| <a name="input_context"></a> [context](#input\_context) | Single object for setting entire context at once.<br/>See description of individual variables for details.<br/>Leave string and numeric variables as `null` to use default value.<br/>Individual variable settings (non-null) override settings in context object,<br/>except for attributes, tags, and additional\_tag\_map, which are merged. | `any` | <pre>{<br/>  "additional_tag_map": {},<br/>  "attributes": [],<br/>  "delimiter": null,<br/>  "descriptor_formats": {},<br/>  "enabled": true,<br/>  "environment": null,<br/>  "id_length_limit": null,<br/>  "label_key_case": null,<br/>  "label_order": [],<br/>  "label_value_case": null,<br/>  "labels_as_tags": [<br/>    "unset"<br/>  ],<br/>  "name": null,<br/>  "namespace": null,<br/>  "regex_replace_chars": null,<br/>  "stage": null,<br/>  "tags": {},<br/>  "tenant": null<br/>}</pre> | no |
+| <a name="input_delimiter"></a> [delimiter](#input\_delimiter) | Delimiter to be used between ID elements.<br/>Defaults to `-` (hyphen). Set to `""` to use no delimiter at all. | `string` | `null` | no |
+| <a name="input_descriptor_formats"></a> [descriptor\_formats](#input\_descriptor\_formats) | Describe additional descriptors to be output in the `descriptors` output map.<br/>Map of maps. Keys are names of descriptors. Values are maps of the form<br/>`{<br/>  format = string<br/>  labels = list(string)<br/>}`<br/>(Type is `any` so the map values can later be enhanced to provide additional options.)<br/>`format` is a Terraform format string to be passed to the `format()` function.<br/>`labels` is a list of labels, in order, to pass to `format()` function.<br/>Label values will be normalized before being passed to `format()` so they will be<br/>identical to how they appear in `id`.<br/>Default is `{}` (`descriptors` output will be empty). | `any` | `{}` | no |
 | <a name="input_enabled"></a> [enabled](#input\_enabled) | Set to false to prevent the module from creating any resources | `bool` | `null` | no |
 | <a name="input_environment"></a> [environment](#input\_environment) | ID element. Usually used for region e.g. 'uw2', 'us-west-2', OR role 'prod', 'staging', 'dev', 'UAT' | `string` | `null` | no |
-| <a name="input_id_length_limit"></a> [id\_length\_limit](#input\_id\_length\_limit) | Limit `id` to this many characters (minimum 6).<br>Set to `0` for unlimited length.<br>Set to `null` for keep the existing setting, which defaults to `0`.<br>Does not affect `id_full`. | `number` | `null` | no |
-| <a name="input_label_key_case"></a> [label\_key\_case](#input\_label\_key\_case) | Controls the letter case of the `tags` keys (label names) for tags generated by this module.<br>Does not affect keys of tags passed in via the `tags` input.<br>Possible values: `lower`, `title`, `upper`.<br>Default value: `title`. | `string` | `null` | no |
-| <a name="input_label_order"></a> [label\_order](#input\_label\_order) | The order in which the labels (ID elements) appear in the `id`.<br>Defaults to ["namespace", "environment", "stage", "name", "attributes"].<br>You can omit any of the 6 labels ("tenant" is the 6th), but at least one must be present. | `list(string)` | `null` | no |
-| <a name="input_label_value_case"></a> [label\_value\_case](#input\_label\_value\_case) | Controls the letter case of ID elements (labels) as included in `id`,<br>set as tag values, and output by this module individually.<br>Does not affect values of tags passed in via the `tags` input.<br>Possible values: `lower`, `title`, `upper` and `none` (no transformation).<br>Set this to `title` and set `delimiter` to `""` to yield Pascal Case IDs.<br>Default value: `lower`. | `string` | `null` | no |
-| <a name="input_labels_as_tags"></a> [labels\_as\_tags](#input\_labels\_as\_tags) | Set of labels (ID elements) to include as tags in the `tags` output.<br>Default is to include all labels.<br>Tags with empty values will not be included in the `tags` output.<br>Set to `[]` to suppress all generated tags.<br>**Notes:**<br>  The value of the `name` tag, if included, will be the `id`, not the `name`.<br>  Unlike other `null-label` inputs, the initial setting of `labels_as_tags` cannot be<br>  changed in later chained modules. Attempts to change it will be silently ignored. | `set(string)` | <pre>[<br>  "default"<br>]</pre> | no |
-| <a name="input_name"></a> [name](#input\_name) | ID element. Usually the component or solution name, e.g. 'app' or 'jenkins'.<br>This is the only ID element not also included as a `tag`.<br>The "name" tag is set to the full `id` string. There is no tag with the value of the `name` input. | `string` | `null` | no |
+| <a name="input_id_length_limit"></a> [id\_length\_limit](#input\_id\_length\_limit) | Limit `id` to this many characters (minimum 6).<br/>Set to `0` for unlimited length.<br/>Set to `null` for keep the existing setting, which defaults to `0`.<br/>Does not affect `id_full`. | `number` | `null` | no |
+| <a name="input_label_key_case"></a> [label\_key\_case](#input\_label\_key\_case) | Controls the letter case of the `tags` keys (label names) for tags generated by this module.<br/>Does not affect keys of tags passed in via the `tags` input.<br/>Possible values: `lower`, `title`, `upper`.<br/>Default value: `title`. | `string` | `null` | no |
+| <a name="input_label_order"></a> [label\_order](#input\_label\_order) | The order in which the labels (ID elements) appear in the `id`.<br/>Defaults to ["namespace", "environment", "stage", "name", "attributes"].<br/>You can omit any of the 6 labels ("tenant" is the 6th), but at least one must be present. | `list(string)` | `null` | no |
+| <a name="input_label_value_case"></a> [label\_value\_case](#input\_label\_value\_case) | Controls the letter case of ID elements (labels) as included in `id`,<br/>set as tag values, and output by this module individually.<br/>Does not affect values of tags passed in via the `tags` input.<br/>Possible values: `lower`, `title`, `upper` and `none` (no transformation).<br/>Set this to `title` and set `delimiter` to `""` to yield Pascal Case IDs.<br/>Default value: `lower`. | `string` | `null` | no |
+| <a name="input_labels_as_tags"></a> [labels\_as\_tags](#input\_labels\_as\_tags) | Set of labels (ID elements) to include as tags in the `tags` output.<br/>Default is to include all labels.<br/>Tags with empty values will not be included in the `tags` output.<br/>Set to `[]` to suppress all generated tags.<br/>**Notes:**<br/>  The value of the `name` tag, if included, will be the `id`, not the `name`.<br/>  Unlike other `null-label` inputs, the initial setting of `labels_as_tags` cannot be<br/>  changed in later chained modules. Attempts to change it will be silently ignored. | `set(string)` | <pre>[<br/>  "default"<br/>]</pre> | no |
+| <a name="input_name"></a> [name](#input\_name) | ID element. Usually the component or solution name, e.g. 'app' or 'jenkins'.<br/>This is the only ID element not also included as a `tag`.<br/>The "name" tag is set to the full `id` string. There is no tag with the value of the `name` input. | `string` | `null` | no |
 | <a name="input_namespace"></a> [namespace](#input\_namespace) | ID element. Usually an abbreviation of your organization name, e.g. 'eg' or 'cp', to help ensure generated IDs are globally unique | `string` | `null` | no |
 | <a name="input_networking_stack"></a> [networking\_stack](#input\_networking\_stack) | Let RunsOn manage your networking stack (`embedded`), or use a vpc under your control (`external`). Null will default to whatever the template used as default. If you select `external`, you will need to provide the VPC ID, the subnet IDs, and optionally the security group ID, and make sure your whole networking setup is compatible with RunsOn (see https://runs-on.com/networking/embedded-vs-external/ for more details). To get started quickly, we recommend using the 'embedded' option. | `string` | `"embedded"` | no |
 | <a name="input_on_failure"></a> [on\_failure](#input\_on\_failure) | Action to be taken if stack creation fails. This must be one of: `DO_NOTHING`, `ROLLBACK`, or `DELETE` | `string` | `"ROLLBACK"` | no |
 | <a name="input_parameters"></a> [parameters](#input\_parameters) | Key-value map of input parameters for the Stack Set template. (\_e.g.\_ map("BusinessUnit","ABC") | `map(string)` | `{}` | no |
 | <a name="input_policy_body"></a> [policy\_body](#input\_policy\_body) | Structure containing the stack policy body | `string` | `""` | no |
-| <a name="input_regex_replace_chars"></a> [regex\_replace\_chars](#input\_regex\_replace\_chars) | Terraform regular expression (regex) string.<br>Characters matching the regex will be removed from the ID elements.<br>If not set, `"/[^a-zA-Z0-9-]/"` is used to remove all characters other than hyphens, letters and digits. | `string` | `null` | no |
+| <a name="input_regex_replace_chars"></a> [regex\_replace\_chars](#input\_regex\_replace\_chars) | Terraform regular expression (regex) string.<br/>Characters matching the regex will be removed from the ID elements.<br/>If not set, `"/[^a-zA-Z0-9-]/"` is used to remove all characters other than hyphens, letters and digits. | `string` | `null` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS Region | `string` | n/a | yes |
 | <a name="input_security_group_id"></a> [security\_group\_id](#input\_security\_group\_id) | Security group ID. If not set, a new security group will be created. | `string` | `null` | no |
-| <a name="input_security_group_rules"></a> [security\_group\_rules](#input\_security\_group\_rules) | Security group rules. These are either added to the security passed in, or added to the security group created when var.security\_group\_id is not set. Types include `ingress` and `egress`. | <pre>list(object({<br>    type        = string<br>    from_port   = number<br>    to_port     = number<br>    protocol    = string<br>    cidr_blocks = list(string)<br>  }))</pre> | `null` | no |
+| <a name="input_security_group_rules"></a> [security\_group\_rules](#input\_security\_group\_rules) | Security group rules. These are either added to the security passed in, or added to the security group created when var.security\_group\_id is not set. Types include `ingress` and `egress`. | <pre>list(object({<br/>    type        = string<br/>    from_port   = number<br/>    to_port     = number<br/>    protocol    = string<br/>    cidr_blocks = list(string)<br/>  }))</pre> | `null` | no |
 | <a name="input_stage"></a> [stage](#input\_stage) | ID element. Usually used to indicate role, e.g. 'prod', 'staging', 'source', 'build', 'test', 'deploy', 'release' | `string` | `null` | no |
 | <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs | `list(string)` | `null` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags (e.g. `{'BusinessUnit': 'XYZ'}`).<br>Neither the tag keys nor the tag values will be modified by this module. | `map(string)` | `{}` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | Additional tags (e.g. `{'BusinessUnit': 'XYZ'}`).<br/>Neither the tag keys nor the tag values will be modified by this module. | `map(string)` | `{}` | no |
 | <a name="input_template_url"></a> [template\_url](#input\_template\_url) | Amazon S3 bucket URL location of a file containing the CloudFormation template body. Maximum file size: 460,800 bytes | `string` | n/a | yes |
 | <a name="input_tenant"></a> [tenant](#input\_tenant) | ID element \_(Rarely used, not included by default)\_. A customer identifier, indicating who this instance of a resource is for | `string` | `null` | no |
 | <a name="input_timeout_in_minutes"></a> [timeout\_in\_minutes](#input\_timeout\_in\_minutes) | The amount of time that can pass before the stack status becomes `CREATE_FAILED` | `number` | `30` | no |
@@ -366,32 +375,7 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
 | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | Security group ID |
 | <a name="output_vpc_cidr"></a> [vpc\_cidr](#output\_vpc\_cidr) | CIDR of the VPC created by RunsOn CloudFormation Stack |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | ID of the VPC created by RunsOn CloudFormation Stack |
-<!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
-<!-- prettier-ignore-end -->
-
-## References
-
-- [cloudposse/terraform-aws-components](https://github.com/cloudposse/terraform-aws-components/tree/main/modules/cloudtrail) -
-  Cloud Posse's upstream component
-
-[<img src="https://cloudposse.com/logo-300x69.svg" height="32" align="right"/>](https://cpco.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudposse-terraform-components/aws-runs-on&utm_content=)
-
-
-> [!TIP]
-> #### 👽 Use Atmos with Terraform
-> Cloud Posse uses [`atmos`](https://atmos.tools) to easily orchestrate multiple environments using Terraform. <br/>
-> Works with [Github Actions](https://atmos.tools/integrations/github-actions/), [Atlantis](https://atmos.tools/integrations/atlantis), or [Spacelift](https://atmos.tools/integrations/spacelift).
->
-> <details>
-> <summary><strong>Watch demo of using Atmos with Terraform</strong></summary>
-> <img src="https://github.com/cloudposse/atmos/blob/main/docs/demo.gif?raw=true"/><br/>
-> <i>Example of running <a href="https://atmos.tools"><code>atmos</code></a> to manage infrastructure from our <a href="https://atmos.tools/quick-start/">Quick Start</a> tutorial.</i>
-> </detalis>
-
-
-
-
-
+<!-- markdownlint-restore -->
 
 
 
@@ -404,6 +388,19 @@ Check out these related projects.
 
 - [Cloud Posse Terraform Modules](https://docs.cloudposse.com/modules/) - Our collection of reusable Terraform modules used by our reference architectures.
 - [Atmos](https://atmos.tools) - Atmos is like docker-compose but for your infrastructure
+
+
+## References
+
+For additional context, refer to some of these links.
+
+- [RunsOn](https://runs-on.com/) - 
+- [Install RunsOn GitHub App](https://runs-on.com/guides/install/#3-github-app-registration) - 
+- [RunsOn Changelog](https://runs-on.com/changelog/) - 
+- [Embedded vs External Networking](https://runs-on.com/networking/embedded-vs-external/) - 
+- [Cloud Posse TGW Hub component](https://docs.cloudposse.com/components/library/aws/tgw/hub/) - 
+- [Cloud Posse TGW Spoke component](https://docs.cloudposse.com/components/library/aws/tgw/spoke/) - 
+
 
 
 > [!TIP]
@@ -469,6 +466,38 @@ In general, PRs are welcome. We follow the typical "fork-and-pull" Git workflow.
  6. Submit a **Pull Request** so that we can review your changes
 
 **NOTE:** Be sure to merge the latest changes from "upstream" before making a pull request!
+
+
+## Running Terraform Tests
+
+We use [Atmos](https://atmos.tools) to streamline how Terraform tests are run. It centralizes configuration and wraps common test workflows with easy-to-use commands.
+
+All tests are located in the [`test/`](test) folder.
+
+Under the hood, tests are powered by Terratest together with our internal [Test Helpers](https://github.com/cloudposse/test-helpers) library, providing robust infrastructure validation.
+
+Setup dependencies:
+- Install Atmos ([installation guide](https://atmos.tools/install/))
+- Install Go [1.24+ or newer](https://go.dev/doc/install)
+- Install Terraform or OpenTofu
+
+To run tests:
+
+- Run all tests:  
+  ```sh
+  atmos test run
+  ```
+- Clean up test artifacts:  
+  ```sh
+  atmos test clean
+  ```
+- Explore additional test options:  
+  ```sh
+  atmos test --help
+  ```
+The configuration for test commands is centrally managed. To review what's being imported, see the [`atmos.yaml`](https://raw.githubusercontent.com/cloudposse/.github/refs/heads/main/.github/atmos/terraform-module.yaml) file.
+
+Learn more about our [automated testing in our documentation](https://docs.cloudposse.com/community/contribute/automated-testing/) or implementing [custom commands](https://atmos.tools/core-concepts/custom-commands/) with atmos.
 
 ### 🌎 Slack Community
 
