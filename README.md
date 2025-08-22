@@ -59,7 +59,7 @@ Compatibility: Requires RunsOn CloudFormation template version 2.8.2 or newer du
 
 Stack Level: Regional
 
-Defaults (runs-on/defaults.yaml)
+(`runs-on/defaults.yaml`)
 
 ```yaml
 components:
@@ -96,12 +96,12 @@ components:
           VpcFlowLogRetentionInDays: 14
 ```
 
-Embedded networking (RunsOn managed VPC)
+### Embedded networking (Runs On managed VPC)
 
 When no VPC details are set, the component will create a new VPC and subnets via the CloudFormation template.
 Set the `VpcCidrBlock` parameter to the CIDR block of the VPC that will be created.
 
-(runs-on.yaml)
+(`runs-on.yaml`)
 
 ```yaml
 import:
@@ -122,11 +122,11 @@ components:
           VpcCidrBlock: 10.100.0.0/16
 ```
 
-External networking (Use existing VPC)
+### External networking (Use existing VPC)
 
 Use an existing VPC by setting `vpc_id`, `subnet_ids`, and `security_group_id`.
 
-(_defaults.yaml)
+(`_defaults.yaml`)
 
 ```yaml
 terraform:
@@ -135,7 +135,7 @@ terraform:
       name: auto/ssm
 ```
 
-(runs-on.yaml)
+(`runs-on.yaml`)
 
 ```yaml
 import:
@@ -162,13 +162,16 @@ components:
         security_group_id: !store auto/ssm vpc default_security_group_id
 ```
 
-(DEPRECATED) Configuring with Transit Gateway
-
-The embedded networking requires customization to work with Transit Gateway.
-Using Cloud Posse components for TGW ([tgw/hub] and [tgw/spoke]), the outputs of this component include
-the same outputs as the `vpc` component (RunsOn creates a VPC and subnets).
-
-Update the TGW Hub to store allowed VPCs (example tgw-hub.yaml):
+<details>
+<summary>(DEPRECATED) Configuring with Transit Gateway</summary>
+It's important to note that the embedded networking will require some customization to work with Transit Gateway.
+The following configuration assumes you are using the Cloud Posse Components for Transit Gateway
+([tgw/hub](https://docs.cloudposse.com/components/library/aws/tgw/hub/) &
+[tgw/spoke](https://docs.cloudposse.com/components/library/aws/tgw/spoke/)).
+The outputs of this component contain the same outputs as the `vpc` component. This is because the runs-on
+cloudformation stack creates a VPC and subnets.
+First we need to update the TGW/Hub - this stores information about the VPCs that are allowed to be used by TGW Spokes.
+Assuming your TGW/Hub lives in the `core-network` account and your Runs-On is deployed to `core-auto` (`tgw-hub.yaml`)
 
 ```yaml
 vars:
@@ -225,7 +228,8 @@ components:
               stage: prod
 ```
 
-Create a TGW spoke that refers to the RunsOn VPC (example tgw-spoke.yaml):
+We then need to create a spoke that refers to the VPC created by Runs-On.
+(`tgw-spoke.yaml`)
 
 ```yaml
 tgw/spoke/runs-on:
@@ -261,7 +265,9 @@ tgw/spoke/runs-on:
           stage: prod
 ```
 
-Update other TGW spokes to allow RunsOn traffic (example tgw-spoke.yaml):
+Finally we need to update the spokes of the TGW/Spokes to allow Runs-On traffic to the other accounts.
+Typically this includes `core-auto`, `core-network`, and your platform accounts.
+(`tgw-spoke.yaml`)
 
 ```yaml
   tgw/spoke:
@@ -276,6 +282,7 @@ Update other TGW spokes to allow RunsOn traffic (example tgw-spoke.yaml):
               - runs-on
         # ...
 ```
+</details>
 
 
 > [!IMPORTANT]
