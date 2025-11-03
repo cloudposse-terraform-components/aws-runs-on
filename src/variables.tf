@@ -56,9 +56,16 @@ variable "vpc_id" {
   default     = null
 }
 
-variable "subnet_ids" {
+variable "public_subnet_ids" {
   type        = list(string)
-  description = "Subnet IDs"
+  description = "Public subnet IDs"
+  nullable    = true
+  default     = null
+}
+
+variable "private_subnet_ids" {
+  type        = list(string)
+  description = "Private subnet IDs"
   nullable    = true
   default     = null
 }

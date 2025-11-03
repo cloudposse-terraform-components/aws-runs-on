@@ -1,9 +1,10 @@
 locals {
   enabled = module.this.enabled
 
-  external_vpc_id  = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
-  networking_stack = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
-  subnet_ids       = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = join(",", var.subnet_ids) } : {}
+  external_vpc_id         = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
+  networking_stack        = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
+  subnet_ids              = concat(coalesce(var.public_subnet_ids, []), coalesce(var.private_subnet_ids, []))
+  external_vpc_subnet_ids = length(local.subnet_ids) > 0 ? { "ExternalVpcSubnetIds" = join(",", local.subnet_ids) } : {}
   // If var.security_group_id is provided, we use it. Otherwise, if we are using the external networking stack, we create one.
   external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
   // If var.security_group_id is not provided and we are using the external networking stack, we create one.
@@ -14,7 +15,7 @@ locals {
     }, var.parameters
     , local.networking_stack
     , local.external_vpc_id
-    , local.subnet_ids
+    , local.external_vpc_subnet_ids
     , local.external_security_group_id
     , local.created_security_group_id
   )
@@ -70,7 +71,7 @@ module "iam_policy" {
   ]
 }
 
-// Typically when runs-on is installed, and we're using the embedded networking stack, we need a security group. 
+// Typically when runs-on is installed, and we're using the embedded networking stack, we need a security group.
 // This is a batties included optional feature.
 module "security_group" {
   source  = "cloudposse/security-group/aws"
