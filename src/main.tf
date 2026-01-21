@@ -1,9 +1,17 @@
 locals {
   enabled = module.this.enabled
 
+  # Extract version from template URL (e.g., "template-v2.11.0.yaml" -> "2.11.0")
+  # The parameter name changed from ExternalVpcSubnetIds to ExternalVpcPublicSubnetIds in v2.8.0
+  version_match          = regex("template-v([0-9]+)\\.([0-9]+)\\.([0-9]+)\\.yaml", var.template_url)
+  template_version_major = tonumber(local.version_match[0])
+  template_version_minor = tonumber(local.version_match[1])
+  use_new_subnet_param   = local.template_version_major > 2 || (local.template_version_major == 2 && local.template_version_minor >= 8)
+  subnet_ids_param_name  = local.use_new_subnet_param ? "ExternalVpcPublicSubnetIds" : "ExternalVpcSubnetIds"
+
   external_vpc_id  = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
   networking_stack = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
-  subnet_ids       = var.subnet_ids != null ? { "ExternalVpcSubnetIds" = join(",", var.subnet_ids) } : {}
+  subnet_ids       = var.subnet_ids != null ? { (local.subnet_ids_param_name) = join(",", var.subnet_ids) } : {}
   // If var.security_group_id is provided, we use it. Otherwise, if we are using the external networking stack, we create one.
   external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
   // If var.security_group_id is not provided and we are using the external networking stack, we create one.
@@ -70,7 +78,7 @@ module "iam_policy" {
   ]
 }
 
-// Typically when runs-on is installed, and we're using the embedded networking stack, we need a security group. 
+// Typically when runs-on is installed, and we're using the embedded networking stack, we need a security group.
 // This is a batties included optional feature.
 module "security_group" {
   source  = "cloudposse/security-group/aws"
