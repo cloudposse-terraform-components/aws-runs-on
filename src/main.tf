@@ -3,11 +3,11 @@ locals {
 
   # Extract version from template URL (e.g., "template-v2.11.0.yaml" -> "2.11.0")
   # The parameter name changed from ExternalVpcSubnetIds to ExternalVpcPublicSubnetIds in v2.8.0
-  version_match            = regex("template-v([0-9]+)\\.([0-9]+)\\.([0-9]+)\\.yaml", var.template_url)
-  template_version_major   = tonumber(local.version_match[0])
-  template_version_minor   = tonumber(local.version_match[1])
-  use_new_subnet_param     = local.template_version_major > 2 || (local.template_version_major == 2 && local.template_version_minor >= 8)
-  subnet_ids_param_name    = local.use_new_subnet_param ? "ExternalVpcPublicSubnetIds" : "ExternalVpcSubnetIds"
+  version_match          = regex("template-v([0-9]+)\\.([0-9]+)\\.([0-9]+)\\.yaml", var.template_url)
+  template_version_major = tonumber(local.version_match[0])
+  template_version_minor = tonumber(local.version_match[1])
+  use_new_subnet_param   = local.template_version_major > 2 || (local.template_version_major == 2 && local.template_version_minor >= 8)
+  subnet_ids_param_name  = local.use_new_subnet_param ? "ExternalVpcPublicSubnetIds" : "ExternalVpcSubnetIds"
 
   external_vpc_id  = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
   networking_stack = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
