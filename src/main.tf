@@ -3,16 +3,20 @@ locals {
 
   # Extract version from template URL (e.g., "template-v2.11.0.yaml" -> "2.11.0")
   # The parameter name changed from ExternalVpcSubnetIds to ExternalVpcPublicSubnetIds in v2.8.0
+  # The ExternalVpcPrivateSubnetIds parameter was added in v2.8.0
   version_match          = regex("template-v([0-9]+)\\.([0-9]+)\\.([0-9]+)\\.yaml", var.template_url)
   template_version_major = tonumber(local.version_match[0])
   template_version_minor = tonumber(local.version_match[1])
   use_new_subnet_param   = local.template_version_major > 2 || (local.template_version_major == 2 && local.template_version_minor >= 8)
   subnet_ids_param_name  = local.use_new_subnet_param ? "ExternalVpcPublicSubnetIds" : "ExternalVpcSubnetIds"
 
+  # ExternalVpcPrivateSubnetIds is only supported in v2.8.0+
+  private_subnet_ids_supported = local.use_new_subnet_param
+
   external_vpc_id             = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
   networking_stack            = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
   subnet_ids                  = var.subnet_ids != null ? { (local.subnet_ids_param_name) = join(",", var.subnet_ids) } : {}
-  external_private_subnet_ids = var.private_subnet_ids != null ? { "ExternalVpcPrivateSubnetIds" = join(",", var.private_subnet_ids) } : {}
+  external_private_subnet_ids = var.private_subnet_ids != null && local.private_subnet_ids_supported ? { "ExternalVpcPrivateSubnetIds" = join(",", var.private_subnet_ids) } : {}
   // If var.security_group_id is provided, we use it. Otherwise, if we are using the external networking stack, we create one.
   external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
   // If var.security_group_id is not provided and we are using the external networking stack, we create one.
@@ -198,5 +202,12 @@ check "embedded_networking_no_private_subnet_ids" {
   assert {
     condition     = var.networking_stack != "embedded" || var.private_subnet_ids == null
     error_message = "private_subnet_ids should not be set when networking_stack is 'embedded'. RunsOn creates its own subnets when using embedded networking."
+  }
+}
+
+check "private_subnet_ids_template_version" {
+  assert {
+    condition     = var.private_subnet_ids == null || local.private_subnet_ids_supported
+    error_message = "private_subnet_ids requires RunsOn CloudFormation template version 2.8.0 or newer. Please upgrade your template_url to a supported version."
   }
 }
