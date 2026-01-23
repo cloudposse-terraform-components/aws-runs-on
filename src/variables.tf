@@ -58,7 +58,14 @@ variable "vpc_id" {
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "Subnet IDs"
+  description = "Public subnet IDs for runners (maps to ExternalVpcPublicSubnetIds). Used for runners without private=true label."
+  nullable    = true
+  default     = null
+}
+
+variable "private_subnet_ids" {
+  type        = list(string)
+  description = "Private subnet IDs for runners (maps to ExternalVpcPrivateSubnetIds). Required when using Private: true or Private: always to place runners in private subnets."
   nullable    = true
   default     = null
 }

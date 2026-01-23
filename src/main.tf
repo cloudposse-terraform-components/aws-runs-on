@@ -9,9 +9,10 @@ locals {
   use_new_subnet_param   = local.template_version_major > 2 || (local.template_version_major == 2 && local.template_version_minor >= 8)
   subnet_ids_param_name  = local.use_new_subnet_param ? "ExternalVpcPublicSubnetIds" : "ExternalVpcSubnetIds"
 
-  external_vpc_id  = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
-  networking_stack = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
-  subnet_ids       = var.subnet_ids != null ? { (local.subnet_ids_param_name) = join(",", var.subnet_ids) } : {}
+  external_vpc_id    = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
+  networking_stack   = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
+  subnet_ids         = var.subnet_ids != null ? { (local.subnet_ids_param_name) = join(",", var.subnet_ids) } : {}
+  private_subnet_ids = var.private_subnet_ids != null ? { "ExternalVpcPrivateSubnetIds" = join(",", var.private_subnet_ids) } : {}
   // If var.security_group_id is provided, we use it. Otherwise, if we are using the external networking stack, we create one.
   external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
   // If var.security_group_id is not provided and we are using the external networking stack, we create one.
@@ -23,6 +24,7 @@ locals {
     , local.networking_stack
     , local.external_vpc_id
     , local.subnet_ids
+    , local.private_subnet_ids
     , local.external_security_group_id
     , local.created_security_group_id
   )
