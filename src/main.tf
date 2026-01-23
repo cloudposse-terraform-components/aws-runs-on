@@ -175,3 +175,28 @@ data "aws_nat_gateways" "ngws" {
   count  = local.enabled ? 1 : 0
   vpc_id = local.vpc_id
 }
+
+# Validate that external networking variables are not set when using embedded networking.
+# When networking_stack is "embedded", RunsOn creates its own VPC with subnets via CloudFormation,
+# so providing external subnet IDs would be ignored and is likely a configuration error.
+
+check "embedded_networking_no_vpc_id" {
+  assert {
+    condition     = var.networking_stack != "embedded" || var.vpc_id == null
+    error_message = "vpc_id should not be set when networking_stack is 'embedded'. RunsOn creates its own VPC when using embedded networking."
+  }
+}
+
+check "embedded_networking_no_subnet_ids" {
+  assert {
+    condition     = var.networking_stack != "embedded" || var.subnet_ids == null
+    error_message = "subnet_ids should not be set when networking_stack is 'embedded'. RunsOn creates its own subnets when using embedded networking."
+  }
+}
+
+check "embedded_networking_no_private_subnet_ids" {
+  assert {
+    condition     = var.networking_stack != "embedded" || var.private_subnet_ids == null
+    error_message = "private_subnet_ids should not be set when networking_stack is 'embedded'. RunsOn creates its own subnets when using embedded networking."
+  }
+}

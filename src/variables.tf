@@ -51,21 +51,44 @@ variable "networking_stack" {
 
 variable "vpc_id" {
   type        = string
-  description = "VPC ID"
+  description = <<-EOT
+    VPC ID for external networking (maps to ExternalVpcId).
+
+    This variable only applies when using `networking_stack = "external"` (bring your own VPC).
+    When using `networking_stack = "embedded"`, RunsOn creates its own VPC via CloudFormation,
+    so this variable should not be set.
+  EOT
   nullable    = true
   default     = null
 }
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "Public subnet IDs for runners (maps to ExternalVpcPublicSubnetIds). Used for runners without private=true label."
+  description = <<-EOT
+    Public subnet IDs for runners (maps to ExternalVpcPublicSubnetIds).
+
+    This variable only applies when using `networking_stack = "external"` (bring your own VPC).
+    When using `networking_stack = "embedded"`, RunsOn creates its own VPC with public and private
+    subnets via CloudFormation, so this variable should not be set.
+
+    Used for runners without the `private=true` label, or when `Private` parameter is set to `"false"`.
+  EOT
   nullable    = true
   default     = null
 }
 
 variable "private_subnet_ids" {
   type        = list(string)
-  description = "Private subnet IDs for runners (maps to ExternalVpcPrivateSubnetIds). Required when using Private: true or Private: always to place runners in private subnets."
+  description = <<-EOT
+    Private subnet IDs for runners (maps to ExternalVpcPrivateSubnetIds).
+
+    This variable only applies when using `networking_stack = "external"` (bring your own VPC).
+    When using `networking_stack = "embedded"`, RunsOn creates its own VPC with public and private
+    subnets via CloudFormation, so this variable should not be set.
+
+    Required when using external networking with `Private: "true"` or `Private: "always"` to place
+    runners in private subnets. These subnets should have NAT gateway access for outbound connectivity.
+  EOT
   nullable    = true
   default     = null
 }
