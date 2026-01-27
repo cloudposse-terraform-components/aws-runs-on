@@ -56,27 +56,10 @@ components:
           VpcFlowLogRetentionInDays: 14
 ```
 
-## Networking Options
+### Embedded networking (Runs On managed VPC)
 
-RunsOn supports two mutually exclusive networking configurations:
-
-- **Embedded networking** (`networking_stack: embedded`): RunsOn creates and manages its own VPC with public
-  and private subnets via CloudFormation. This is the simplest option to get started.
-
-- **External networking** (`networking_stack: external`): You provide your own VPC with subnets. This gives
-  you full control over networking and is required when you need Transit Gateway connectivity, VPC peering,
-  or other advanced networking configurations.
-
-> **Important**: The `vpc_id`, `subnet_ids`, and `private_subnet_ids` variables only apply when using
-> `networking_stack: external`. If you set these variables with `networking_stack: embedded`, Terraform
-> will return an error because RunsOn creates its own networking resources in embedded mode.
-
-### Embedded networking (RunsOn managed VPC)
-
-When using embedded networking, RunsOn creates a new VPC with public and private subnets via the
-CloudFormation template. Set the `VpcCidrBlock` parameter to specify the CIDR block for the VPC.
-
-Do **not** set `vpc_id`, `subnet_ids`, or `private_subnet_ids` when using embedded networking.
+When no VPC details are set, the component will create a new VPC and subnets via the CloudFormation template.
+Set the `VpcCidrBlock` parameter to the CIDR block of the VPC that will be created.
 
 (`runs-on.yaml`)
 
@@ -101,25 +84,7 @@ components:
 
 ### External networking (Use existing VPC)
 
-Use an existing VPC by setting `vpc_id`, `subnet_ids`, and optionally `private_subnet_ids`.
-
-**Subnet configuration:**
-
-- `subnet_ids` (public subnets): Used for runners by default, or when the `Private` parameter is `"false"`.
-  Maps to CloudFormation parameter `ExternalVpcPublicSubnetIds`.
-
-- `private_subnet_ids` (private subnets): Used for runners when `Private` parameter is `"true"` or `"always"`.
-  Maps to CloudFormation parameter `ExternalVpcPrivateSubnetIds`. These subnets should have NAT gateway
-  access for outbound connectivity.
-
-**Private networking options** (set via `parameters.Private`):
-
-| Value | Behavior |
-|-------|----------|
-| `"false"` (default) | All runners use public subnets |
-| `"true"` | Runners with `private=true` workflow label use private subnets; others use public |
-| `"always"` | All runners use private subnets unless `private=false` label is specified |
-| `"only"` | All runners must use private subnets; public subnet execution is unavailable |
+Use an existing VPC by setting `vpc_id`, `subnet_ids`, and `security_group_id`.
 
 (`_defaults.yaml`)
 
@@ -153,12 +118,8 @@ components:
         # Use Atmos KV Store
         # Use atmos !terraform.output yaml function
         vpc_id: !store auto/ssm vpc vpc_id
-        subnet_ids: !store auto/ssm vpc public_subnet_ids
-        private_subnet_ids: !store auto/ssm vpc private_subnet_ids
+        subnet_ids: !store auto/ssm vpc private_subnet_ids
         security_group_id: !store auto/ssm vpc default_security_group_id
-        parameters:
-          # Enable per-workflow control: use private=true label to place runner in private subnet
-          Private: "true"
 ```
 
 <details>
@@ -342,17 +303,18 @@ Typically this includes `core-auto`, `core-network`, and your platform accounts.
 | <a name="input_on_failure"></a> [on\_failure](#input\_on\_failure) | Action to be taken if stack creation fails. This must be one of: `DO_NOTHING`, `ROLLBACK`, or `DELETE` | `string` | `"ROLLBACK"` | no |
 | <a name="input_parameters"></a> [parameters](#input\_parameters) | Key-value map of input parameters for the Stack Set template. (\_e.g.\_ map("BusinessUnit","ABC") | `map(string)` | `{}` | no |
 | <a name="input_policy_body"></a> [policy\_body](#input\_policy\_body) | Structure containing the stack policy body | `string` | `""` | no |
+| <a name="input_private_subnet_ids"></a> [private\_subnet\_ids](#input\_private\_subnet\_ids) | Private subnet IDs for runners (maps to ExternalVpcPrivateSubnetIds).<br/><br/>This variable only applies when using `networking_stack = "external"` (bring your own VPC).<br/>When using `networking_stack = "embedded"`, RunsOn creates its own VPC with public and private<br/>subnets via CloudFormation, so this variable should not be set.<br/><br/>Required when using external networking with `Private: "true"` or `Private: "always"` to place<br/>runners in private subnets. These subnets should have NAT gateway access for outbound connectivity. | `list(string)` | `null` | no |
 | <a name="input_regex_replace_chars"></a> [regex\_replace\_chars](#input\_regex\_replace\_chars) | Terraform regular expression (regex) string.<br/>Characters matching the regex will be removed from the ID elements.<br/>If not set, `"/[^a-zA-Z0-9-]/"` is used to remove all characters other than hyphens, letters and digits. | `string` | `null` | no |
 | <a name="input_region"></a> [region](#input\_region) | AWS Region | `string` | n/a | yes |
 | <a name="input_security_group_id"></a> [security\_group\_id](#input\_security\_group\_id) | Security group ID. If not set, a new security group will be created. | `string` | `null` | no |
 | <a name="input_security_group_rules"></a> [security\_group\_rules](#input\_security\_group\_rules) | Security group rules. These are either added to the security passed in, or added to the security group created when var.security\_group\_id is not set. Types include `ingress` and `egress`. | <pre>list(object({<br/>    type        = string<br/>    from_port   = number<br/>    to_port     = number<br/>    protocol    = string<br/>    cidr_blocks = list(string)<br/>  }))</pre> | `null` | no |
 | <a name="input_stage"></a> [stage](#input\_stage) | ID element. Usually used to indicate role, e.g. 'prod', 'staging', 'source', 'build', 'test', 'deploy', 'release' | `string` | `null` | no |
-| <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Subnet IDs | `list(string)` | `null` | no |
+| <a name="input_subnet_ids"></a> [subnet\_ids](#input\_subnet\_ids) | Public subnet IDs for runners (maps to ExternalVpcPublicSubnetIds).<br/><br/>This variable only applies when using `networking_stack = "external"` (bring your own VPC).<br/>When using `networking_stack = "embedded"`, RunsOn creates its own VPC with public and private<br/>subnets via CloudFormation, so this variable should not be set.<br/><br/>Used for runners without the `private=true` label, or when `Private` parameter is set to `"false"`. | `list(string)` | `null` | no |
 | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags (e.g. `{'BusinessUnit': 'XYZ'}`).<br/>Neither the tag keys nor the tag values will be modified by this module. | `map(string)` | `{}` | no |
 | <a name="input_template_url"></a> [template\_url](#input\_template\_url) | Amazon S3 bucket URL location of a file containing the CloudFormation template body. Maximum file size: 460,800 bytes | `string` | n/a | yes |
 | <a name="input_tenant"></a> [tenant](#input\_tenant) | ID element \_(Rarely used, not included by default)\_. A customer identifier, indicating who this instance of a resource is for | `string` | `null` | no |
 | <a name="input_timeout_in_minutes"></a> [timeout\_in\_minutes](#input\_timeout\_in\_minutes) | The amount of time that can pass before the stack status becomes `CREATE_FAILED` | `number` | `30` | no |
-| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | VPC ID | `string` | `null` | no |
+| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | VPC ID for external networking (maps to ExternalVpcId).<br/><br/>This variable only applies when using `networking_stack = "external"` (bring your own VPC).<br/>When using `networking_stack = "embedded"`, RunsOn creates its own VPC via CloudFormation,<br/>so this variable should not be set. | `string` | `null` | no |
 
 ## Outputs
 
