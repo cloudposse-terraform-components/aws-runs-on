@@ -56,10 +56,27 @@ components:
           VpcFlowLogRetentionInDays: 14
 ```
 
-### Embedded networking (Runs On managed VPC)
+## Networking Options
 
-When no VPC details are set, the component will create a new VPC and subnets via the CloudFormation template.
-Set the `VpcCidrBlock` parameter to the CIDR block of the VPC that will be created.
+RunsOn supports two mutually exclusive networking configurations:
+
+- **Embedded networking** (`networking_stack: embedded`): RunsOn creates and manages its own VPC with public
+  and private subnets via CloudFormation. This is the simplest option to get started.
+
+- **External networking** (`networking_stack: external`): You provide your own VPC with subnets. This gives
+  you full control over networking and is required when you need Transit Gateway connectivity, VPC peering,
+  or other advanced networking configurations.
+
+> **Important**: The `vpc_id`, `subnet_ids`, and `private_subnet_ids` variables only apply when using
+> `networking_stack: external`. If you set these variables with `networking_stack: embedded`, Terraform
+> will return an error because RunsOn creates its own networking resources in embedded mode.
+
+### Embedded networking (RunsOn managed VPC)
+
+When using embedded networking, RunsOn creates a new VPC with public and private subnets via the
+CloudFormation template. Set the `VpcCidrBlock` parameter to specify the CIDR block for the VPC.
+
+Do **not** set `vpc_id`, `subnet_ids`, or `private_subnet_ids` when using embedded networking.
 
 (`runs-on.yaml`)
 
@@ -84,7 +101,25 @@ components:
 
 ### External networking (Use existing VPC)
 
-Use an existing VPC by setting `vpc_id`, `subnet_ids`, and `security_group_id`.
+Use an existing VPC by setting `vpc_id`, `subnet_ids`, and optionally `private_subnet_ids`.
+
+**Subnet configuration:**
+
+- `subnet_ids` (public subnets): Used for runners by default, or when the `Private` parameter is `"false"`.
+  Maps to CloudFormation parameter `ExternalVpcPublicSubnetIds`.
+
+- `private_subnet_ids` (private subnets): Used for runners when `Private` parameter is `"true"` or `"always"`.
+  Maps to CloudFormation parameter `ExternalVpcPrivateSubnetIds`. These subnets should have NAT gateway
+  access for outbound connectivity.
+
+**Private networking options** (set via `parameters.Private`):
+
+| Value | Behavior |
+|-------|----------|
+| `"false"` (default) | All runners use public subnets |
+| `"true"` | Runners with `private=true` workflow label use private subnets; others use public |
+| `"always"` | All runners use private subnets unless `private=false` label is specified |
+| `"only"` | All runners must use private subnets; public subnet execution is unavailable |
 
 (`_defaults.yaml`)
 
@@ -118,8 +153,12 @@ components:
         # Use Atmos KV Store
         # Use atmos !terraform.output yaml function
         vpc_id: !store auto/ssm vpc vpc_id
-        subnet_ids: !store auto/ssm vpc private_subnet_ids
+        subnet_ids: !store auto/ssm vpc public_subnet_ids
+        private_subnet_ids: !store auto/ssm vpc private_subnet_ids
         security_group_id: !store auto/ssm vpc default_security_group_id
+        parameters:
+          # Enable per-workflow control: use private=true label to place runner in private subnet
+          Private: "true"
 ```
 
 <details>
