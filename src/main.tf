@@ -1,52 +1,87 @@
 locals {
   enabled = module.this.enabled
 
-  # Extract version from template URL (e.g., "template-v2.11.0.yaml" -> "2.11.0")
-  # The parameter name changed from ExternalVpcSubnetIds to ExternalVpcPublicSubnetIds in v2.8.0
-  # The ExternalVpcPrivateSubnetIds parameter was added in v2.8.0
-  version_match          = regex("template-v([0-9]+)\\.([0-9]+)\\.([0-9]+)\\.yaml", var.template_url)
-  template_version_major = tonumber(local.version_match[0])
-  template_version_minor = tonumber(local.version_match[1])
-  use_new_subnet_param   = local.template_version_major > 2 || (local.template_version_major == 2 && local.template_version_minor >= 8)
-  subnet_ids_param_name  = local.use_new_subnet_param ? "ExternalVpcPublicSubnetIds" : "ExternalVpcSubnetIds"
+  # Merge singular security_group_id with security_group_ids list for backward compatibility
+  security_group_ids = compact(concat(
+    var.security_group_ids,
+    var.security_group_id != null ? [var.security_group_id] : []
+  ))
 
-  # ExternalVpcPrivateSubnetIds is only supported in v2.8.0+
-  private_subnet_ids_supported = local.use_new_subnet_param
-
-  external_vpc_id             = var.vpc_id != null ? { "ExternalVpcId" = var.vpc_id } : {}
-  networking_stack            = var.networking_stack != null ? { "NetworkingStack" = var.networking_stack } : {}
-  subnet_ids                  = var.subnet_ids != null ? { (local.subnet_ids_param_name) = join(",", var.subnet_ids) } : {}
-  external_private_subnet_ids = var.private_subnet_ids != null && local.private_subnet_ids_supported ? { "ExternalVpcPrivateSubnetIds" = join(",", var.private_subnet_ids) } : {}
-  // If var.security_group_id is provided, we use it. Otherwise, if we are using the external networking stack, we create one.
-  external_security_group_id = var.security_group_id != null ? { "ExternalVpcSecurityGroupId" = var.security_group_id } : {}
-  // If var.security_group_id is not provided and we are using the external networking stack, we create one.
-  created_security_group_id = var.security_group_id == null && var.networking_stack == "external" ? { "ExternalVpcSecurityGroupId" = module.security_group.id } : {}
-
-  parameters = merge({
-    "EC2InstanceCustomPolicy" = module.iam_policy.policy_arn
-    }, var.parameters
-    , local.networking_stack
-    , local.external_vpc_id
-    , local.subnet_ids
-    , local.external_private_subnet_ids
-    , local.external_security_group_id
-    , local.created_security_group_id
-  )
-
+  # Use module.this.id as stack_name if not explicitly set
+  stack_name = var.stack_name != null ? var.stack_name : module.this.id
 }
+
+module "runs_on" {
+  count = local.enabled ? 1 : 0
+
+  source  = "runs-on/runs-on/aws"
+  version = "2.11.0-r1"
+
+  # Required inputs
+  github_organization = var.github_organization
+  license_key         = var.license_key
+  vpc_id              = var.vpc_id
+  public_subnet_ids   = var.public_subnet_ids
+  email               = var.email
+
+  # Networking
+  private_subnet_ids = var.private_subnet_ids
+  private_mode       = var.private_mode
+  security_group_ids = local.security_group_ids
+  ssh_allowed        = var.ssh_allowed
+  ssh_cidr_range     = var.ssh_cidr_range
+  ipv6_enabled       = var.ipv6_enabled
+
+  # Compute / App Runner
+  app_cpu                  = var.app_cpu
+  app_memory               = var.app_memory
+  ebs_encryption_enabled   = var.ebs_encryption_enabled
+  runner_large_disk_size   = var.runner_large_disk_size
+  runner_default_disk_size = var.runner_default_disk_size
+  log_retention_days       = var.log_retention_days
+  permission_boundary_arn  = var.permission_boundary_arn
+
+  # Runner configuration
+  runner_custom_tags = var.runner_custom_tags
+
+  # Naming / environment
+  stack_name  = local.stack_name
+  environment = var.runs_on_environment
+
+  # Monitoring
+  app_alarm_daily_minutes = var.app_alarm_daily_minutes
+
+  # Optional features
+  enable_efs = var.enable_efs
+  enable_ecr = var.enable_ecr
+  enable_waf = var.enable_waf
+
+  # Storage
+  cache_expiration_days = var.cache_expiration_days
+  force_destroy_buckets = var.force_destroy_buckets
+
+  # Tags - pass Cloud Posse context tags
+  tags = module.this.tags
+}
+
+# -----------------------------------------------------------------------------
+# Custom ECR IAM policy for runner instances
+# This grants runners access to existing ECR repositories in the account,
+# independent of the module's enable_ecr feature (which creates a new repo).
+# -----------------------------------------------------------------------------
 
 module "iam_policy" {
   source  = "cloudposse/iam-policy/aws"
   version = "2.0.2"
 
   context = module.this.context
-  enabled = module.this.enabled
+  enabled = local.enabled
 
   iam_policy_enabled = true
   iam_policy = [
     {
       version   = "2012-10-17"
-      policy_id = "example"
+      policy_id = "RunsOnECRAccess"
       statements = [
         {
           sid    = "AllowECRActions"
@@ -84,28 +119,27 @@ module "iam_policy" {
   ]
 }
 
-// Typically when runs-on is installed, and we're using the embedded networking stack, we need a security group.
-// This is a batties included optional feature.
-module "security_group" {
-  source  = "cloudposse/security-group/aws"
-  version = "2.2.0"
+# Attach the custom ECR policy to the module's EC2 instance role
+resource "aws_iam_role_policy_attachment" "ecr_custom" {
+  count = local.enabled ? 1 : 0
 
-  // Enabled if we are using the external networking stack and no security group ID is provided
-  enabled = local.enabled && var.networking_stack == "external" && var.security_group_id == null
-
-  // This cannot be local.vpc_id because that would create a dependency cycle - as the local.vpc_id is determined as the resulting VPC id.
-  // The vpc_id is the created vpc by runs-on, or the one provided by the user if using the external networking stack.
-  // Thus the security group ID (which is passed in as `ExternalVpcSecurityGroupId` as a parameter to the stack) cannot depend on the stacks' vpc_id.
-  // `var.vpc_id` is safe to use here, because the networking_stack is required to be external for this.
-  vpc_id = var.vpc_id
-
-  context = module.this.context
+  role       = one(module.runs_on[*].ec2_instance_role_name)
+  policy_arn = module.iam_policy.policy_arn
 }
 
-resource "aws_security_group_rule" "this" {
-  for_each = var.security_group_rules != null && local.enabled ? { for rule in var.security_group_rules : md5(jsonencode(rule)) => rule } : {}
+# -----------------------------------------------------------------------------
+# Additional security group rules
+# Applied to the first security group from the module's output.
+# The module auto-creates a SG (with all outbound + optional SSH) when
+# security_group_ids is empty; these rules add to that SG.
+# -----------------------------------------------------------------------------
 
-  security_group_id = local.security_group_id
+resource "aws_security_group_rule" "this" {
+  for_each = var.security_group_rules != null && local.enabled ? {
+    for rule in var.security_group_rules : md5(jsonencode(rule)) => rule
+  } : {}
+
+  security_group_id = one(module.runs_on[*].security_group_ids[0])
 
   type        = each.value.type
   from_port   = each.value.from_port
@@ -114,100 +148,16 @@ resource "aws_security_group_rule" "this" {
   cidr_blocks = each.value.cidr_blocks
 }
 
-module "cloudformation_stack" {
-  count = local.enabled ? 1 : 0
-
-  source  = "cloudposse/cloudformation-stack/aws"
-  version = "0.7.1"
-
-  enabled = var.enabled
-  context = module.this.context
-
-  template_url       = var.template_url
-  parameters         = local.parameters
-  capabilities       = var.capabilities
-  on_failure         = var.on_failure
-  timeout_in_minutes = var.timeout_in_minutes
-  policy_body        = var.policy_body
-
-  depends_on = [module.iam_policy]
-}
+# -----------------------------------------------------------------------------
+# Data sources for TGW-compatible outputs
+# -----------------------------------------------------------------------------
 
 data "aws_vpc" "this" {
   count = local.enabled ? 1 : 0
-  id    = local.vpc_id
-}
-
-data "aws_subnets" "private" {
-  count = local.enabled ? 1 : 0
-  filter {
-    name   = "vpc-id"
-    values = [local.vpc_id]
-  }
-  filter {
-    name   = "map-public-ip-on-launch"
-    values = ["false"]
-  }
-}
-
-data "aws_subnets" "public" {
-  count = local.enabled ? 1 : 0
-  filter {
-    name   = "vpc-id"
-    values = [local.vpc_id]
-  }
-  filter {
-    name   = "map-public-ip-on-launch"
-    values = ["true"]
-  }
-}
-
-locals {
-  vpc_id             = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVPCId"]) : var.vpc_id
-  vpc_cidr_block     = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVpcCidrBlock"]) : one(data.aws_vpc.this[*].cidr_block)
-  public_subnet_ids  = one(data.aws_subnets.public[*].ids)
-  private_subnet_ids = one(data.aws_subnets.private[*].ids)
-  private_route_table_ids = var.networking_stack == "embedded" ? compact([
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable1Id"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable2Id"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable3Id"]),
-  ]) : []
-  security_group_id = one(module.cloudformation_stack[*].outputs["RunsOnSecurityGroupId"])
+  id    = var.vpc_id
 }
 
 data "aws_nat_gateways" "ngws" {
   count  = local.enabled ? 1 : 0
-  vpc_id = local.vpc_id
-}
-
-# Validate that external networking variables are not set when using embedded networking.
-# When networking_stack is "embedded", RunsOn creates its own VPC with subnets via CloudFormation,
-# so providing external subnet IDs would be ignored and is likely a configuration error.
-
-check "embedded_networking_no_vpc_id" {
-  assert {
-    condition     = var.networking_stack != "embedded" || var.vpc_id == null
-    error_message = "vpc_id should not be set when networking_stack is 'embedded'. RunsOn creates its own VPC when using embedded networking."
-  }
-}
-
-check "embedded_networking_no_subnet_ids" {
-  assert {
-    condition     = var.networking_stack != "embedded" || var.subnet_ids == null
-    error_message = "subnet_ids should not be set when networking_stack is 'embedded'. RunsOn creates its own subnets when using embedded networking."
-  }
-}
-
-check "embedded_networking_no_private_subnet_ids" {
-  assert {
-    condition     = var.networking_stack != "embedded" || var.private_subnet_ids == null
-    error_message = "private_subnet_ids should not be set when networking_stack is 'embedded'. RunsOn creates its own subnets when using embedded networking."
-  }
-}
-
-check "private_subnet_ids_template_version" {
-  assert {
-    condition     = var.private_subnet_ids == null || local.private_subnet_ids_supported
-    error_message = "private_subnet_ids requires RunsOn CloudFormation template version 2.8.0 or newer. Please upgrade your template_url to a supported version."
-  }
+  vpc_id = var.vpc_id
 }

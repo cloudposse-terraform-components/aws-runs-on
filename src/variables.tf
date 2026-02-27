@@ -3,101 +3,80 @@ variable "region" {
   description = "AWS Region"
 }
 
-variable "template_url" {
+# -----------------------------------------------------------------------------
+# Required inputs
+# -----------------------------------------------------------------------------
+
+variable "github_organization" {
   type        = string
-  description = "Amazon S3 bucket URL location of a file containing the CloudFormation template body. Maximum file size: 460,800 bytes"
+  description = "GitHub organization or username for RunsOn integration"
 }
 
-variable "parameters" {
-  type        = map(string)
-  description = "Key-value map of input parameters for the Stack Set template. (_e.g._ map(\"BusinessUnit\",\"ABC\")"
-  default     = {}
-}
-
-variable "capabilities" {
-  type        = list(string)
-  description = "A list of capabilities. Valid values: CAPABILITY_IAM, CAPABILITY_NAMED_IAM, CAPABILITY_AUTO_EXPAND"
-  default     = []
-}
-
-variable "on_failure" {
+variable "license_key" {
   type        = string
-  default     = "ROLLBACK"
-  description = "Action to be taken if stack creation fails. This must be one of: `DO_NOTHING`, `ROLLBACK`, or `DELETE`"
+  sensitive   = true
+  description = "RunsOn license key. See https://runs-on.com/pricing/"
 }
 
-variable "timeout_in_minutes" {
-  type        = number
-  default     = 30
-  description = "The amount of time that can pass before the stack status becomes `CREATE_FAILED`"
-}
-
-variable "policy_body" {
+variable "email" {
   type        = string
-  default     = ""
-  description = "Structure containing the stack policy body"
-}
-
-variable "networking_stack" {
-  type        = string
-  description = "Let RunsOn manage your networking stack (`embedded`), or use a vpc under your control (`external`). Null will default to whatever the template used as default. If you select `external`, you will need to provide the VPC ID, the subnet IDs, and optionally the security group ID, and make sure your whole networking setup is compatible with RunsOn (see https://runs-on.com/networking/embedded-vs-external/ for more details). To get started quickly, we recommend using the 'embedded' option."
-  nullable    = true
-  default     = "embedded"
-  validation {
-    condition     = contains(["embedded", "external"], var.networking_stack) || var.networking_stack == null
-    error_message = "Networking stack must be either `embedded` or `external`."
-  }
+  description = "Email address for RunsOn alert notifications"
 }
 
 variable "vpc_id" {
   type        = string
-  description = <<-EOT
-    VPC ID for external networking (maps to ExternalVpcId).
-
-    This variable only applies when using `networking_stack = "external"` (bring your own VPC).
-    When using `networking_stack = "embedded"`, RunsOn creates its own VPC via CloudFormation,
-    so this variable should not be set.
-  EOT
-  nullable    = true
-  default     = null
+  description = "VPC ID for RunsOn deployment. RunsOn resources will be created in this VPC."
 }
 
-variable "subnet_ids" {
+variable "public_subnet_ids" {
   type        = list(string)
   description = <<-EOT
-    Public subnet IDs for runners (maps to ExternalVpcPublicSubnetIds).
-
-    This variable only applies when using `networking_stack = "external"` (bring your own VPC).
-    When using `networking_stack = "embedded"`, RunsOn creates its own VPC with public and private
-    subnets via CloudFormation, so this variable should not be set.
-
-    Used for runners without the `private=true` label, or when `Private` parameter is set to `"false"`.
+    Public subnet IDs for runners. At least one is required.
+    Used for runners without the `private=true` label, or when `private_mode` is `"false"`.
   EOT
-  nullable    = true
-  default     = null
 }
+
+# -----------------------------------------------------------------------------
+# Networking
+# -----------------------------------------------------------------------------
 
 variable "private_subnet_ids" {
   type        = list(string)
   description = <<-EOT
-    Private subnet IDs for runners (maps to ExternalVpcPrivateSubnetIds).
-
-    This variable only applies when using `networking_stack = "external"` (bring your own VPC).
-    When using `networking_stack = "embedded"`, RunsOn creates its own VPC with public and private
-    subnets via CloudFormation, so this variable should not be set.
-
-    Required when using external networking with `Private: "true"` or `Private: "always"` to place
-    runners in private subnets. These subnets should have NAT gateway access for outbound connectivity.
+    Private subnet IDs for runners.
+    Required when `private_mode` is not `"false"`. These subnets should have NAT gateway
+    access for outbound connectivity.
   EOT
-  nullable    = true
-  default     = null
+  default     = []
+}
+
+variable "private_mode" {
+  type        = string
+  description = <<-EOT
+    Controls how runners are placed in subnets:
+    - `"false"`: All runners use public subnets (default)
+    - `"true"`: Private networking available; runners opt-in via `private=true` workflow label
+    - `"always"`: Private networking is default; runners can opt-out
+    - `"only"`: All runners MUST use private subnets
+  EOT
+  default     = "true"
+  validation {
+    condition     = contains(["false", "true", "always", "only"], var.private_mode)
+    error_message = "private_mode must be one of: \"false\", \"true\", \"always\", \"only\"."
+  }
 }
 
 variable "security_group_id" {
   type        = string
-  description = "Security group ID. If not set, a new security group will be created."
+  description = "Security group ID to use for runners. If not set and security_group_ids is empty, one will be created by the module."
   nullable    = true
   default     = null
+}
+
+variable "security_group_ids" {
+  type        = list(string)
+  description = "List of security group IDs to use for runners. If empty and security_group_id is not set, one will be created by the module."
+  default     = []
 }
 
 variable "security_group_rules" {
@@ -108,7 +87,146 @@ variable "security_group_rules" {
     protocol    = string
     cidr_blocks = list(string)
   }))
-  description = "Security group rules. These are either added to the security passed in, or added to the security group created when var.security_group_id is not set. Types include `ingress` and `egress`."
+  description = "Additional security group rules to apply to the runner security group."
   nullable    = true
   default     = null
+}
+
+variable "ssh_allowed" {
+  type        = bool
+  description = "Whether SSH access is allowed to runners. Recommend false; use SSM instead."
+  default     = false
+}
+
+variable "ssh_cidr_range" {
+  type        = string
+  description = "CIDR range for SSH access when ssh_allowed is true."
+  default     = "0.0.0.0/0"
+}
+
+variable "ipv6_enabled" {
+  type        = bool
+  description = "Enable IPv6 support."
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Compute / App Runner
+# -----------------------------------------------------------------------------
+
+variable "app_cpu" {
+  type        = number
+  description = "CPU units for the RunsOn App Runner service."
+  default     = 256
+}
+
+variable "app_memory" {
+  type        = number
+  description = "Memory in MB for the RunsOn App Runner service."
+  default     = 512
+}
+
+variable "ebs_encryption_enabled" {
+  type        = bool
+  description = "Enable EBS encryption for runner volumes."
+  default     = true
+}
+
+variable "runner_default_disk_size" {
+  type        = number
+  description = "Default EBS volume size in GB for runners."
+  default     = 40
+}
+
+variable "runner_large_disk_size" {
+  type        = number
+  description = "EBS volume size in GB for runners using disk=large label."
+  default     = 120
+}
+
+variable "log_retention_days" {
+  type        = number
+  description = "CloudWatch log retention in days for runner logs."
+  default     = 30
+}
+
+variable "permission_boundary_arn" {
+  type        = string
+  description = "IAM permissions boundary ARN for roles created by the module."
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
+# Runner configuration
+# -----------------------------------------------------------------------------
+
+variable "runner_custom_tags" {
+  type        = list(string)
+  description = "Custom tags for runner instances (e.g., [\"org=myorg\"])."
+  default     = []
+}
+
+variable "runs_on_environment" {
+  type        = string
+  description = <<-EOT
+    RunsOn environment identifier (e.g., "production").
+    Note: This is the RunsOn environment, not the Cloud Posse context environment.
+    If you run multiple RunsOn stacks in one organization, use different environments to segregate resources.
+  EOT
+  default     = "production"
+}
+
+variable "stack_name" {
+  type        = string
+  description = "Name for the RunsOn stack, used in resource naming. Defaults to the Cloud Posse module ID if not set."
+  nullable    = true
+  default     = null
+}
+
+# -----------------------------------------------------------------------------
+# Optional features
+# -----------------------------------------------------------------------------
+
+variable "enable_efs" {
+  type        = bool
+  description = "Enable EFS shared storage for runners."
+  default     = false
+}
+
+variable "enable_ecr" {
+  type        = bool
+  description = "Enable ECR image registry managed by RunsOn."
+  default     = false
+}
+
+variable "enable_waf" {
+  type        = bool
+  description = "Enable WAF on the App Runner service."
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Storage
+# -----------------------------------------------------------------------------
+
+variable "cache_expiration_days" {
+  type        = number
+  description = "Number of days before S3 cache objects expire."
+  default     = 10
+}
+
+variable "force_destroy_buckets" {
+  type        = bool
+  description = "Allow destruction of non-empty S3 buckets during teardown."
+  default     = false
+}
+
+# -----------------------------------------------------------------------------
+# Monitoring
+# -----------------------------------------------------------------------------
+
+variable "app_alarm_daily_minutes" {
+  type        = number
+  description = "Daily alarm threshold in minutes for App Runner usage."
+  default     = 4000
 }
