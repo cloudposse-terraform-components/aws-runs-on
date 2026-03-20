@@ -1,6 +1,7 @@
 locals {
   enabled = module.this.enabled
 
+<<<<<<< Updated upstream
   # Extract version from template URL (e.g., "template-v2.11.0.yaml" -> "2.11.0")
   # The parameter name changed from ExternalVpcSubnetIds to ExternalVpcPublicSubnetIds in v2.8.0
   # The ExternalVpcPrivateSubnetIds parameter was added in v2.8.0
@@ -115,34 +116,126 @@ resource "aws_security_group_rule" "this" {
 }
 
 module "cloudformation_stack" {
+=======
+  stack_name = coalesce(var.stack_name, module.this.name)
+}
+
+module "runs_on" {
+>>>>>>> Stashed changes
   count = local.enabled ? 1 : 0
 
-  source  = "cloudposse/cloudformation-stack/aws"
-  version = "0.7.1"
+  source  = "runs-on/runs-on/aws"
+  version = "v2.11.0-r1"
 
-  enabled = var.enabled
-  context = module.this.context
+  # Stack configuration
+  stack_name          = local.stack_name
+  environment         = var.runs_on_environment
+  cost_allocation_tag = var.cost_allocation_tag
+  tags                = module.this.tags
 
-  template_url       = var.template_url
-  parameters         = local.parameters
-  capabilities       = var.capabilities
-  on_failure         = var.on_failure
-  timeout_in_minutes = var.timeout_in_minutes
-  policy_body        = var.policy_body
+  # GitHub configuration
+  github_organization   = var.github_organization
+  github_enterprise_url = var.github_enterprise_url
+  license_key           = var.license_key
 
-  depends_on = [module.iam_policy]
+  # Alert configuration
+  email                   = var.email
+  alert_https_endpoint    = var.alert_https_endpoint
+  alert_slack_webhook_url = var.alert_slack_webhook_url
+
+  # Networking configuration
+  vpc_id             = var.vpc_id
+  public_subnet_ids  = var.public_subnet_ids
+  private_subnet_ids = var.private_subnet_ids
+  private_mode       = var.private_mode
+  security_group_ids = var.security_group_ids
+
+  # SSH configuration
+  ssh_allowed    = var.ssh_allowed
+  ssh_cidr_range = var.ssh_cidr_range
+
+  # App Runner configuration
+  app_image              = var.app_image
+  app_tag                = var.app_tag
+  bootstrap_tag          = var.bootstrap_tag
+  app_cpu                = var.app_cpu
+  app_memory             = var.app_memory
+  app_debug              = var.app_debug
+  app_ecr_repository_url = var.app_ecr_repository_url
+
+  # Compute configuration
+  log_retention_days               = var.log_retention_days
+  permission_boundary_arn          = var.permission_boundary_arn
+  detailed_monitoring_enabled      = var.detailed_monitoring_enabled
+  ipv6_enabled                     = var.ipv6_enabled
+  ebs_encryption_enabled           = var.ebs_encryption_enabled
+  ebs_encryption_key_id            = var.ebs_encryption_key_id
+  runner_default_disk_size         = var.runner_default_disk_size
+  runner_default_volume_throughput = var.runner_default_volume_throughput
+  runner_large_disk_size           = var.runner_large_disk_size
+  runner_large_volume_throughput   = var.runner_large_volume_throughput
+
+  # Runner configuration
+  ec2_queue_size                  = var.ec2_queue_size
+  runner_max_runtime              = var.runner_max_runtime
+  runner_custom_tags              = var.runner_custom_tags
+  runner_config_auto_extends_from = var.runner_config_auto_extends_from
+  github_api_strategy             = var.github_api_strategy
+  default_admins                  = var.default_admins
+  spot_circuit_breaker            = var.spot_circuit_breaker
+
+  # Storage configuration
+  cache_expiration_days = var.cache_expiration_days
+  force_destroy_buckets = var.force_destroy_buckets
+
+  # Monitoring configuration
+  enable_dashboard                           = var.enable_dashboard
+  enable_cost_reports                        = var.enable_cost_reports
+  app_alarm_daily_minutes                    = var.app_alarm_daily_minutes
+  sqs_queue_oldest_message_threshold_seconds = var.sqs_queue_oldest_message_threshold_seconds
+
+  # Integration configuration
+  integration_step_security_api_key = var.integration_step_security_api_key
+  otel_exporter_endpoint            = var.otel_exporter_endpoint
+  otel_exporter_headers             = var.otel_exporter_headers
+  logger_level                      = var.logger_level
+  server_password                   = var.server_password
+
+  # Optional features
+  enable_efs                         = var.enable_efs
+  enable_ecr                         = var.enable_ecr
+  prevent_destroy_optional_resources = var.prevent_destroy_optional_resources
+  force_delete_ecr                   = var.force_delete_ecr
+
+  # WAF configuration
+  enable_waf             = var.enable_waf
+  waf_allowed_ipv4_cidrs = var.waf_allowed_ipv4_cidrs
+  waf_allowed_ipv6_cidrs = var.waf_allowed_ipv6_cidrs
 }
+
+# Attach additional IAM policies to the EC2 instance role.
+# Use this to grant runners access to services such as ECR, SSM, or custom resources.
+resource "aws_iam_role_policy_attachment" "additional" {
+  for_each = local.enabled ? toset(var.additional_iam_policy_arns) : toset([])
+
+  role       = one(module.runs_on[*].ec2_instance_role_name)
+  policy_arn = each.value
+}
+
+# ---------------------------------------------------------------------------
+# Data sources used for VPC-related outputs (e.g. TGW integration)
+# ---------------------------------------------------------------------------
 
 data "aws_vpc" "this" {
   count = local.enabled ? 1 : 0
-  id    = local.vpc_id
+  id    = var.vpc_id
 }
 
 data "aws_subnets" "private" {
   count = local.enabled ? 1 : 0
   filter {
     name   = "vpc-id"
-    values = [local.vpc_id]
+    values = [var.vpc_id]
   }
   filter {
     name   = "map-public-ip-on-launch"
@@ -154,7 +247,7 @@ data "aws_subnets" "public" {
   count = local.enabled ? 1 : 0
   filter {
     name   = "vpc-id"
-    values = [local.vpc_id]
+    values = [var.vpc_id]
   }
   filter {
     name   = "map-public-ip-on-launch"
@@ -162,22 +255,22 @@ data "aws_subnets" "public" {
   }
 }
 
-locals {
-  vpc_id             = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVPCId"]) : var.vpc_id
-  vpc_cidr_block     = var.networking_stack == "embedded" ? one(module.cloudformation_stack[*].outputs["RunsOnVpcCidrBlock"]) : one(data.aws_vpc.this[*].cidr_block)
-  public_subnet_ids  = one(data.aws_subnets.public[*].ids)
-  private_subnet_ids = one(data.aws_subnets.private[*].ids)
-  private_route_table_ids = var.networking_stack == "embedded" ? compact([
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable1Id"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable2Id"]),
-    one(module.cloudformation_stack[*].outputs["RunsOnPrivateRouteTable3Id"]),
-  ]) : []
-  security_group_id = one(module.cloudformation_stack[*].outputs["RunsOnSecurityGroupId"])
-}
-
 data "aws_nat_gateways" "ngws" {
   count  = local.enabled ? 1 : 0
-  vpc_id = local.vpc_id
+  vpc_id = var.vpc_id
+}
+
+# Look up the route table for each private subnet (used by TGW spoke component).
+data "aws_route_table" "private" {
+  for_each  = local.enabled && length(var.private_subnet_ids) > 0 ? toset(var.private_subnet_ids) : toset([])
+  subnet_id = each.value
+}
+
+locals {
+  all_private_subnet_ids  = one(data.aws_subnets.private[*].ids)
+  all_public_subnet_ids   = one(data.aws_subnets.public[*].ids)
+  vpc_cidr_block          = one(data.aws_vpc.this[*].cidr_block)
+  private_route_table_ids = distinct([for rt in data.aws_route_table.private : rt.id])
 }
 
 # Validate that external networking variables are not set when using embedded networking.

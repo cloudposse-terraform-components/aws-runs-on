@@ -29,6 +29,7 @@ related:
     url: "https://atmos.tools"
 contributors: [] # If included generates contribs
 # Short description of this project
+<<<<<<< Updated upstream
 description: |
   Component: `runs-on`
 
@@ -40,6 +41,43 @@ description: |
 # How to use this project
 usage: |
   Stack Level: Regional
+=======
+description: |-
+  This component provisions [RunsOn](https://runs-on.com/) self-hosted GitHub Actions runners on AWS using the
+  official [runs-on/terraform-aws-runs-on](https://github.com/runs-on/terraform-aws-runs-on) Terraform module.
+
+  After deploying this component you need to install the RunsOn GitHub App. See the
+  [RunsOn installation guide](https://runs-on.com/guides/install/#3-github-app-registration) for details.
+
+  ## Breaking Changes from Previous Version
+
+  This component has been rewritten to use the official Terraform module instead of wrapping the RunsOn
+  CloudFormation template. **This is a major breaking change** requiring a full re-deploy.
+
+  ### What changed
+
+  | Area | Before | After |
+  |------|--------|-------|
+  | Backend | CloudFormation template | Native Terraform resources |
+  | Networking | Embedded (RunsOn VPC) or External | External VPC only (bring your own) |
+  | Private mode | CloudFormation `Private` param (`always`/`true`/`false`) | `private_mode` var (`false`/`true`/`always`/`only`) — fixed behavior |
+  | Config | `parameters` map of CFn param strings | Explicit typed Terraform variables |
+  | Terraform | >= 1.0.0, AWS >= 4.9 | >= 1.5.7, AWS >= 6.0, time >= 0.9, http >= 3.0 |
+
+  ### Migration steps
+
+  1. **Destroy the old stack** — the CloudFormation stack and all resources it manages must be removed before applying the new component.
+  2. **Provision a VPC** — the new module requires an existing VPC with at least one public subnet. Use the `vpc` component or another VPC component and reference its outputs.
+  3. **Update your Atmos stack configuration** — replace CloudFormation-specific variables (see table above) with the new variables documented below.
+  4. **Apply the new component.**
+  5. **Re-register the GitHub App** if the App Runner URL changes.
+
+  ## Usage
+
+  **Stack Level**: Regional
+
+  ### Minimal configuration
+>>>>>>> Stashed changes
 
   (`runs-on/defaults.yaml`)
 
@@ -53,6 +91,7 @@ usage: |
         vars:
           name: runs-on
           enabled: true
+<<<<<<< Updated upstream
           capabilities: ["CAPABILITY_IAM"]
           on_failure: "ROLLBACK"
           timeout_in_minutes: 30
@@ -107,6 +146,15 @@ usage: |
   ### External networking (Use existing VPC)
 
   Use an existing VPC by setting `vpc_id`, `subnet_ids`, and `security_group_id`.
+=======
+          github_organization: my-org
+          license_key: <LICENSE_KEY>
+          email: devops@example.com
+          ssh_allowed: false
+  ```
+
+  ### With an existing VPC (external networking)
+>>>>>>> Stashed changes
 
   (`_defaults.yaml`)
 
@@ -123,7 +171,6 @@ usage: |
   import:
     - orgs/acme/core/auto/_defaults
     - mixins/region/us-east-1
-    - catalog/vpc/defaults
     - catalog/runs-on/defaults
 
   components:
@@ -134,16 +181,28 @@ usage: |
             - runs-on/defaults
           component: runs-on
         vars:
+<<<<<<< Updated upstream
           networking_stack: external
           # There are other ways to get the vpc_id, subnet_ids, and security_group_id.
           # Hardcode
           # Use Atmos KV Store
           # Use atmos !terraform.output yaml function
+=======
+          # VPC — at minimum you need a VPC ID and at least one public subnet.
+>>>>>>> Stashed changes
           vpc_id: !store auto/ssm vpc vpc_id
-          subnet_ids: !store auto/ssm vpc private_subnet_ids
-          security_group_id: !store auto/ssm vpc default_security_group_id
+          public_subnet_ids: !store auto/ssm vpc public_subnet_ids
+          # Include private subnets if you want to use private_mode
+          private_subnet_ids: !store auto/ssm vpc private_subnet_ids
+          # private_mode controls where runners are placed:
+          #   false   = public subnets only (default)
+          #   true    = opt-in via `private=true` workflow label
+          #   always  = private by default, opt-out with `private=false` label
+          #   only    = private subnets only, no public option
+          private_mode: "true"
   ```
 
+<<<<<<< Updated upstream
   <details>
   <summary>(DEPRECATED) Configuring with Transit Gateway</summary>
   It's important to note that the embedded networking will require some customization to work with Transit Gateway.
@@ -154,6 +213,63 @@ usage: |
   cloudformation stack creates a VPC and subnets.
   First we need to update the TGW/Hub - this stores information about the VPCs that are allowed to be used by TGW Spokes.
   Assuming your TGW/Hub lives in the `core-network` account and your Runs-On is deployed to `core-auto` (`tgw-hub.yaml`)
+=======
+  ### With additional IAM permissions for runners
+
+  Use `additional_iam_policy_arns` to grant runners access to ECR, SSM, or other AWS resources:
+
+  ```yaml
+  components:
+    terraform:
+      runs-on:
+        vars:
+          additional_iam_policy_arns:
+            - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+  ```
+
+  ### Full configuration example
+
+  ```yaml
+  components:
+    terraform:
+      runs-on:
+        metadata:
+          inherits:
+            - runs-on/defaults
+          component: runs-on
+        vars:
+          vpc_id: !store auto/ssm vpc vpc_id
+          public_subnet_ids: !store auto/ssm vpc public_subnet_ids
+          private_subnet_ids: !store auto/ssm vpc private_subnet_ids
+          private_mode: "true"
+
+          # App Runner sizing
+          app_cpu: 256
+          app_memory: 512
+
+          # EBS / compute
+          ebs_encryption_enabled: true
+          runner_default_disk_size: 40
+          runner_large_disk_size: 120
+          log_retention_days: 30
+
+          # Optional features
+          enable_ecr: true
+          enable_efs: false
+          enable_waf: false   # Enable only after GitHub App registration
+
+          # Alerting
+          alert_slack_webhook_url: https://hooks.slack.com/services/...
+  ```
+
+  ### TGW integration (Transit Gateway)
+
+  The VPC-related outputs (`vpc_id`, `vpc_cidr`, `private_subnet_ids`, `public_subnet_ids`,
+  `private_route_table_ids`, `nat_gateway_ids`) have the same shape as the `vpc` component, so existing
+  TGW hub/spoke configurations can reference this component without changes.
+
+  (`tgw-hub.yaml`)
+>>>>>>> Stashed changes
 
   ```yaml
   vars:
@@ -166,6 +282,7 @@ usage: |
           - runs-on
   ```
 
+<<<<<<< Updated upstream
   ```yaml
   components:
     terraform:
@@ -211,6 +328,8 @@ usage: |
   ```
 
   We then need to create a spoke that refers to the VPC created by Runs-On.
+=======
+>>>>>>> Stashed changes
   (`tgw-spoke.yaml`)
 
   ```yaml
@@ -233,20 +352,9 @@ usage: |
           vpc_component_names:
             - vpc
             - runs-on
-        - account:
-            tenant: plat
-            stage: sandbox
-        - account:
-            tenant: plat
-            stage: dev
-        - account:
-            tenant: plat
-            stage: staging
-        - account:
-            tenant: plat
-            stage: prod
   ```
 
+<<<<<<< Updated upstream
   Finally we need to update the spokes of the TGW/Spokes to allow Runs-On traffic to the other accounts.
   Typically this includes `core-auto`, `core-network`, and your platform accounts.
   (`tgw-spoke.yaml`)
@@ -285,3 +393,150 @@ references:
   - name: Cloud Posse TGW Spoke component
     description: ""
     url: https://docs.cloudposse.com/components/library/aws/tgw/spoke/
+=======
+  # Terraform Docs
+
+  <!-- prettier-ignore-start -->
+  <!-- BEGINNING OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+  ## Requirements
+
+  | Name | Version |
+  |------|---------|
+  | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.7 |
+  | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 6.0 |
+  | <a name="requirement_http"></a> [http](#requirement\_http) | >= 3.0 |
+  | <a name="requirement_time"></a> [time](#requirement\_time) | >= 0.9 |
+
+  ## Providers
+
+  | Name | Version |
+  |------|---------|
+  | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.0 |
+
+  ## Modules
+
+  | Name | Source | Version |
+  |------|--------|---------|
+  | <a name="module_iam_roles"></a> [iam\_roles](#module\_iam\_roles) | cloudposse/iam-roles/aws | 0.10.0 |
+  | <a name="module_runs_on"></a> [runs\_on](#module\_runs\_on) | runs-on/runs-on/aws | v2.11.0-r1 |
+  | <a name="module_this"></a> [this](#module\_this) | cloudposse/label/null | 0.25.0 |
+
+  ## Resources
+
+  | Name | Type |
+  |------|------|
+  | [aws_iam_role_policy_attachment.additional](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+  | [aws_nat_gateways.ngws](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/nat_gateways) | data source |
+  | [aws_route_table.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/route_table) | data source |
+  | [aws_subnets.private](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets) | data source |
+  | [aws_subnets.public](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/subnets) | data source |
+  | [aws_vpc.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
+
+  ## Inputs
+
+  | Name | Description | Type | Default | Required |
+  |------|-------------|------|---------|:--------:|
+  | <a name="input_additional_iam_policy_arns"></a> [additional\_iam\_policy\_arns](#input\_additional\_iam\_policy\_arns) | IAM managed policy ARNs to attach to the EC2 runner instance role | `list(string)` | `[]` | no |
+  | <a name="input_additional_tag_map"></a> [additional\_tag\_map](#input\_additional\_tag\_map) | Additional key-value pairs to add to each map in `tags_as_list_of_maps` | `map(string)` | `{}` | no |
+  | <a name="input_alert_https_endpoint"></a> [alert\_https\_endpoint](#input\_alert\_https\_endpoint) | HTTPS endpoint for alert notifications (optional) | `string` | `""` | no |
+  | <a name="input_alert_slack_webhook_url"></a> [alert\_slack\_webhook\_url](#input\_alert\_slack\_webhook\_url) | Slack webhook URL for alert notifications (optional) | `string` | `""` | no |
+  | <a name="input_app_alarm_daily_minutes"></a> [app\_alarm\_daily\_minutes](#input\_app\_alarm\_daily\_minutes) | Daily App Runner budget in minutes before a CloudWatch alarm fires | `number` | `4000` | no |
+  | <a name="input_app_cpu"></a> [app\_cpu](#input\_app\_cpu) | CPU units for the App Runner service (256, 512, 1024, 2048, 4096) | `number` | `256` | no |
+  | <a name="input_app_debug"></a> [app\_debug](#input\_app\_debug) | Enable debug mode for the RunsOn stack | `bool` | `false` | no |
+  | <a name="input_app_ecr_repository_url"></a> [app\_ecr\_repository\_url](#input\_app\_ecr\_repository\_url) | Private ECR URL for the RunsOn App Runner image | `string` | `""` | no |
+  | <a name="input_app_image"></a> [app\_image](#input\_app\_image) | App Runner container image for the RunsOn service | `string` | (module default) | no |
+  | <a name="input_app_memory"></a> [app\_memory](#input\_app\_memory) | Memory in MB for the App Runner service | `number` | `512` | no |
+  | <a name="input_app_tag"></a> [app\_tag](#input\_app\_tag) | Application version tag for the RunsOn service | `string` | `"v2.11.0"` | no |
+  | <a name="input_attributes"></a> [attributes](#input\_attributes) | ID element. Additional attributes appended to `id` | `list(string)` | `[]` | no |
+  | <a name="input_bootstrap_tag"></a> [bootstrap\_tag](#input\_bootstrap\_tag) | Bootstrap script version tag | `string` | `"v0.1.12"` | no |
+  | <a name="input_cache_expiration_days"></a> [cache\_expiration\_days](#input\_cache\_expiration\_days) | Days to retain cache artifacts in S3 (1–365) | `number` | `10` | no |
+  | <a name="input_context"></a> [context](#input\_context) | Single object for setting entire context at once | `any` | see context.tf | no |
+  | <a name="input_cost_allocation_tag"></a> [cost\_allocation\_tag](#input\_cost\_allocation\_tag) | Tag key used for cost allocation | `string` | `"stack"` | no |
+  | <a name="input_default_admins"></a> [default\_admins](#input\_default\_admins) | Comma-separated GitHub usernames to grant admin access | `string` | `""` | no |
+  | <a name="input_detailed_monitoring_enabled"></a> [detailed\_monitoring\_enabled](#input\_detailed\_monitoring\_enabled) | Enable detailed CloudWatch monitoring for EC2 instances | `bool` | `false` | no |
+  | <a name="input_ebs_encryption_enabled"></a> [ebs\_encryption\_enabled](#input\_ebs\_encryption\_enabled) | Enable EBS volume encryption | `bool` | `false` | no |
+  | <a name="input_ebs_encryption_key_id"></a> [ebs\_encryption\_key\_id](#input\_ebs\_encryption\_key\_id) | KMS key ID for EBS encryption (empty = AWS managed key) | `string` | `""` | no |
+  | <a name="input_ec2_queue_size"></a> [ec2\_queue\_size](#input\_ec2\_queue\_size) | Maximum warm EC2 instances in the queue (1–1000) | `number` | `2` | no |
+  | <a name="input_email"></a> [email](#input\_email) | Email address for alerts and notifications | `string` | n/a | yes |
+  | <a name="input_enable_cost_reports"></a> [enable\_cost\_reports](#input\_enable\_cost\_reports) | Send automated cost reports to the alert email | `bool` | `true` | no |
+  | <a name="input_enable_dashboard"></a> [enable\_dashboard](#input\_enable\_dashboard) | Create a CloudWatch dashboard for RunsOn | `bool` | `true` | no |
+  | <a name="input_enable_ecr"></a> [enable\_ecr](#input\_enable\_ecr) | Enable ECR repository for ephemeral Docker image storage | `bool` | `false` | no |
+  | <a name="input_enable_efs"></a> [enable\_efs](#input\_enable\_efs) | Enable EFS file system for shared storage across runners | `bool` | `false` | no |
+  | <a name="input_enable_waf"></a> [enable\_waf](#input\_enable\_waf) | Enable AWS WAF for App Runner | `bool` | `false` | no |
+  | <a name="input_force_delete_ecr"></a> [force\_delete\_ecr](#input\_force\_delete\_ecr) | Allow ECR deletion with images (testing only) | `bool` | `false` | no |
+  | <a name="input_force_destroy_buckets"></a> [force\_destroy\_buckets](#input\_force\_destroy\_buckets) | Allow non-empty S3 bucket destruction | `bool` | `false` | no |
+  | <a name="input_github_api_strategy"></a> [github\_api\_strategy](#input\_github\_api\_strategy) | GitHub API call strategy: normal or conservative | `string` | `"normal"` | no |
+  | <a name="input_github_enterprise_url"></a> [github\_enterprise\_url](#input\_github\_enterprise\_url) | GitHub Enterprise Server URL (empty for github.com) | `string` | `""` | no |
+  | <a name="input_github_organization"></a> [github\_organization](#input\_github\_organization) | GitHub organization or username | `string` | n/a | yes |
+  | <a name="input_integration_step_security_api_key"></a> [integration\_step\_security\_api\_key](#input\_integration\_step\_security\_api\_key) | StepSecurity API key (optional) | `string` | `""` | no |
+  | <a name="input_ipv6_enabled"></a> [ipv6\_enabled](#input\_ipv6\_enabled) | Enable IPv6 support for runner instances | `bool` | `false` | no |
+  | <a name="input_license_key"></a> [license\_key](#input\_license\_key) | RunsOn license key | `string` | n/a | yes |
+  | <a name="input_log_retention_days"></a> [log\_retention\_days](#input\_log\_retention\_days) | Days to retain CloudWatch logs for EC2 runners | `number` | `7` | no |
+  | <a name="input_logger_level"></a> [logger\_level](#input\_logger\_level) | RunsOn service log level (debug/info/warn/error) | `string` | `"info"` | no |
+  | <a name="input_name"></a> [name](#input\_name) | ID element. Component or solution name | `string` | `null` | no |
+  | <a name="input_otel_exporter_endpoint"></a> [otel\_exporter\_endpoint](#input\_otel\_exporter\_endpoint) | OpenTelemetry exporter endpoint (optional) | `string` | `""` | no |
+  | <a name="input_otel_exporter_headers"></a> [otel\_exporter\_headers](#input\_otel\_exporter\_headers) | OpenTelemetry exporter headers (optional) | `string` | `""` | no |
+  | <a name="input_permission_boundary_arn"></a> [permission\_boundary\_arn](#input\_permission\_boundary\_arn) | IAM permissions boundary ARN for all IAM roles | `string` | `""` | no |
+  | <a name="input_prevent_destroy_optional_resources"></a> [prevent\_destroy\_optional\_resources](#input\_prevent\_destroy\_optional\_resources) | Prevent destruction of EFS and ECR resources | `bool` | `true` | no |
+  | <a name="input_private_mode"></a> [private\_mode](#input\_private\_mode) | Runner subnet placement: false/true/always/only | `string` | `"false"` | no |
+  | <a name="input_private_subnet_ids"></a> [private\_subnet\_ids](#input\_private\_subnet\_ids) | Private subnet IDs (required when private\_mode != false) | `list(string)` | `[]` | no |
+  | <a name="input_public_subnet_ids"></a> [public\_subnet\_ids](#input\_public\_subnet\_ids) | Public subnet IDs (at least one required) | `list(string)` | n/a | yes |
+  | <a name="input_region"></a> [region](#input\_region) | AWS Region | `string` | n/a | yes |
+  | <a name="input_runner_config_auto_extends_from"></a> [runner\_config\_auto\_extends\_from](#input\_runner\_config\_auto\_extends\_from) | Base runner config file to auto-extend from | `string` | `".github-private"` | no |
+  | <a name="input_runner_custom_tags"></a> [runner\_custom\_tags](#input\_runner\_custom\_tags) | Custom tags to apply to runner instances | `list(string)` | `[]` | no |
+  | <a name="input_runner_default_disk_size"></a> [runner\_default\_disk\_size](#input\_runner\_default\_disk\_size) | Default EBS volume size in GB (8–16384) | `number` | `40` | no |
+  | <a name="input_runner_default_volume_throughput"></a> [runner\_default\_volume\_throughput](#input\_runner\_default\_volume\_throughput) | Default EBS throughput in MiB/s (125–2000) | `number` | `400` | no |
+  | <a name="input_runner_large_disk_size"></a> [runner\_large\_disk\_size](#input\_runner\_large\_disk\_size) | Large EBS volume size in GB (20–16384) | `number` | `80` | no |
+  | <a name="input_runner_large_volume_throughput"></a> [runner\_large\_volume\_throughput](#input\_runner\_large\_volume\_throughput) | Large EBS throughput in MiB/s (125–2000) | `number` | `750` | no |
+  | <a name="input_runner_max_runtime"></a> [runner\_max\_runtime](#input\_runner\_max\_runtime) | Max runner runtime in minutes before forced termination | `number` | `720` | no |
+  | <a name="input_runs_on_environment"></a> [runs\_on\_environment](#input\_runs\_on\_environment) | RunsOn environment name for job label filtering | `string` | `"production"` | no |
+  | <a name="input_server_password"></a> [server\_password](#input\_server\_password) | RunsOn server admin interface password (optional) | `string` | `""` | no |
+  | <a name="input_spot_circuit_breaker"></a> [spot\_circuit\_breaker](#input\_spot\_circuit\_breaker) | Spot circuit breaker config (failures/window\_min/block\_min) | `string` | `"2/15/30"` | no |
+  | <a name="input_sqs_queue_oldest_message_threshold_seconds"></a> [sqs\_queue\_oldest\_message\_threshold\_seconds](#input\_sqs\_queue\_oldest\_message\_threshold\_seconds) | SQS oldest message alarm threshold in seconds (0=disabled) | `number` | `0` | no |
+  | <a name="input_ssh_allowed"></a> [ssh\_allowed](#input\_ssh\_allowed) | Allow SSH to runner instances | `bool` | `false` | no |
+  | <a name="input_ssh_cidr_range"></a> [ssh\_cidr\_range](#input\_ssh\_cidr\_range) | CIDR allowed for SSH (when ssh\_allowed=true) | `string` | `"0.0.0.0/0"` | no |
+  | <a name="input_stack_name"></a> [stack\_name](#input\_stack\_name) | RunsOn stack name (defaults to CloudPosse component name) | `string` | `null` | no |
+  | <a name="input_tags"></a> [tags](#input\_tags) | Additional tags | `map(string)` | `{}` | no |
+  | <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | VPC ID where RunsOn will be deployed | `string` | n/a | yes |
+  | <a name="input_waf_allowed_ipv4_cidrs"></a> [waf\_allowed\_ipv4\_cidrs](#input\_waf\_allowed\_ipv4\_cidrs) | Extra IPv4 CIDRs allowed through WAF | `list(string)` | `[]` | no |
+  | <a name="input_waf_allowed_ipv6_cidrs"></a> [waf\_allowed\_ipv6\_cidrs](#input\_waf\_allowed\_ipv6\_cidrs) | Extra IPv6 CIDRs allowed through WAF | `list(string)` | `[]` | no |
+
+  ## Outputs
+
+  | Name | Description |
+  |------|-------------|
+  | <a name="output_apprunner_log_group_name"></a> [apprunner\_log\_group\_name](#output\_apprunner\_log\_group\_name) | CloudWatch log group name for the App Runner service |
+  | <a name="output_apprunner_service_arn"></a> [apprunner\_service\_arn](#output\_apprunner\_service\_arn) | ARN of the RunsOn App Runner service |
+  | <a name="output_apprunner_service_status"></a> [apprunner\_service\_status](#output\_apprunner\_service\_status) | Operational status of the RunsOn App Runner service |
+  | <a name="output_apprunner_service_url"></a> [apprunner\_service\_url](#output\_apprunner\_service\_url) | URL of the RunsOn App Runner service (the setup/admin UI) |
+  | <a name="output_cache_bucket_name"></a> [cache\_bucket\_name](#output\_cache\_bucket\_name) | Name of the S3 cache bucket |
+  | <a name="output_config_bucket_name"></a> [config\_bucket\_name](#output\_config\_bucket\_name) | Name of the S3 configuration bucket |
+  | <a name="output_dashboard_url"></a> [dashboard\_url](#output\_dashboard\_url) | URL to the CloudWatch Dashboard |
+  | <a name="output_ec2_instance_log_group_name"></a> [ec2\_instance\_log\_group\_name](#output\_ec2\_instance\_log\_group\_name) | CloudWatch log group name for EC2 runner instances |
+  | <a name="output_ec2_instance_profile_arn"></a> [ec2\_instance\_profile\_arn](#output\_ec2\_instance\_profile\_arn) | ARN of the EC2 instance profile |
+  | <a name="output_ec2_instance_role_arn"></a> [ec2\_instance\_role\_arn](#output\_ec2\_instance\_role\_arn) | ARN of the IAM role attached to runner EC2 instances |
+  | <a name="output_ec2_instance_role_name"></a> [ec2\_instance\_role\_name](#output\_ec2\_instance\_role\_name) | Name of the IAM role attached to runner EC2 instances |
+  | <a name="output_logging_bucket_name"></a> [logging\_bucket\_name](#output\_logging\_bucket\_name) | Name of the S3 logging bucket |
+  | <a name="output_nat_gateway_ids"></a> [nat\_gateway\_ids](#output\_nat\_gateway\_ids) | NAT Gateway IDs in the VPC |
+  | <a name="output_nat_instance_ids"></a> [nat\_instance\_ids](#output\_nat\_instance\_ids) | NAT Instance IDs (always empty) |
+  | <a name="output_private_route_table_ids"></a> [private\_route\_table\_ids](#output\_private\_route\_table\_ids) | Route table IDs for private subnets (used by TGW spoke) |
+  | <a name="output_private_subnet_ids"></a> [private\_subnet\_ids](#output\_private\_subnet\_ids) | Private subnet IDs discovered from the VPC |
+  | <a name="output_public_subnet_ids"></a> [public\_subnet\_ids](#output\_public\_subnet\_ids) | Public subnet IDs discovered from the VPC |
+  | <a name="output_security_group_id"></a> [security\_group\_id](#output\_security\_group\_id) | Primary security group ID used by runner instances |
+  | <a name="output_security_group_ids"></a> [security\_group\_ids](#output\_security\_group\_ids) | All security group IDs used by runner instances |
+  | <a name="output_sns_topic_arn"></a> [sns\_topic\_arn](#output\_sns\_topic\_arn) | ARN of the SNS alerts topic |
+  | <a name="output_stack_name"></a> [stack\_name](#output\_stack\_name) | RunsOn stack name used for resource naming |
+  | <a name="output_vpc_cidr"></a> [vpc\_cidr](#output\_vpc\_cidr) | CIDR block of the VPC |
+  | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | ID of the VPC where RunsOn is deployed |
+  <!-- END OF PRE-COMMIT-TERRAFORM DOCS HOOK -->
+  <!-- prettier-ignore-end -->
+
+  ## References
+
+  - [runs-on/terraform-aws-runs-on](https://github.com/runs-on/terraform-aws-runs-on) - Official RunsOn Terraform module
+  - [RunsOn networking documentation](https://runs-on.com/networking/embedded-vs-external/)
+  - [RunsOn private mode documentation](https://runs-on.com/configuration/job-labels/)
+  - [cloudposse/terraform-aws-components](https://github.com/cloudposse/terraform-aws-components) - Cloud Posse's upstream component library
+
+  [<img src="https://cloudposse.com/logo-300x69.svg" height="32" align="right"/>](https://cpco.io/homepage?utm_source=github&utm_medium=readme&utm_campaign=cloudposse-terraform-components/aws-runs-on&utm_content=)
+>>>>>>> Stashed changes
